@@ -1,0 +1,124 @@
+---
+title: "STAT4601_FINAL_PROJECT"
+author: "Trae Smith"
+date: "2025-04-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(asbio)
+library(DescTools)
+library(tidyverse)
+library(fastICA)
+```
+
+
+```{r Data Setup}
+
+##Getting the datasets from the Excel files
+manhattan_data<-readxl::read_xlsx(here::here("rollingsales_manhattan.xlsx")) |>janitor::clean_names()
+bronx_data<-readxl::read_xlsx(here::here("rollingsales_bronx.xlsx")) |>janitor::clean_names()
+brooklyn_data<-readxl::read_xlsx(here::here("rollingsales_brooklyn.xlsx")) |>janitor::clean_names()
+queens_data<-readxl::read_xlsx(here::here("rollingsales_queens.xlsx")) |>janitor::clean_names()
+staten_island_data<-readxl::read_xlsx(here::here("rollingsales_statenisland.xlsx")) |>janitor::clean_names()
+
+##Column Names are the 4th row
+col_names<-make.names(c(manhattan_data[4,]))
+
+##The Information in row 1 to 3 are descriptions of the dataset, and are not needed in the dataframe, the 4th row is the column names and can also be removed
+
+manhattan_data<-manhattan_data[-c(1:4),]
+bronx_data<-bronx_data[-c(1:4),]
+brooklyn_data<-brooklyn_data[-c(1:4),]
+queens_data<-queens_data[-c(1:4),]
+staten_island_data<-staten_island_data[-c(1:4),]
+
+##The column names are the same for all datasets, so we can use the same vector for all of them
+colnames(manhattan_data)<-col_names
+colnames(bronx_data)<-col_names
+colnames(brooklyn_data)<-col_names
+colnames(queens_data)<-col_names
+colnames(staten_island_data)<-col_names
+
+#In case we are looking overall in New York City, and not specific regions
+new_york_city_data<-rbind(manhattan_data, bronx_data, brooklyn_data, queens_data, staten_island_data)
+
+#Note: This is to be improved on and/or taken up with team
+##Notice how the Easement is NA overall, therefore, we can remove it in the dataset
+##Likewise, other columns are not needed for PCA analysis as they are addresses, sale date, etc. As such, these can be removed too
+
+#Overall (combined all boroughs)
+new_york_city_data<-new_york_city_data[,-c(2,7,9,10,21)]
+
+
+##Fixing the columns as numerics to use Principal Component Analysis
+new_york_city_data<-new_york_city_data |> 
+  mutate(BOROUGH= as.numeric(as.factor(BOROUGH)), 
+         BUILDING.CLASS.CATEGORY= as.numeric(as.factor(BUILDING.CLASS.CATEGORY)), 
+         TAX.CLASS.AT.PRESENT= as.numeric(as.factor(TAX.CLASS.AT.PRESENT)), 
+         BLOCK= as.numeric(BLOCK), 
+         LOT= as.numeric(LOT), 
+         BUILDING.CLASS.AT.PRESENT= as.numeric(as.factor(BUILDING.CLASS.AT.PRESENT)), 
+         ZIP.CODE= as.numeric(ZIP.CODE), 
+         RESIDENTIAL.UNITS= as.numeric(RESIDENTIAL.UNITS), 
+         COMMERCIAL.UNITS= as.numeric(COMMERCIAL.UNITS), 
+         TOTAL.UNITS= as.numeric(TOTAL.UNITS), 
+         LAND.SQUARE.FEET= as.numeric(LAND.SQUARE.FEET), 
+         GROSS.SQUARE.FEET= as.numeric(GROSS.SQUARE.FEET), 
+         YEAR.BUILT= as.numeric(YEAR.BUILT), 
+         TAX.CLASS.AT.TIME.OF.SALE= as.numeric(as.factor(TAX.CLASS.AT.TIME.OF.SALE)), 
+         BUILDING.CLASS.AT.TIME.OF.SALE= as.numeric(as.factor(BUILDING.CLASS.AT.TIME.OF.SALE)),
+         SALE.PRICE = as.numeric(SALE.PRICE))
+
+
+
+
+
+##Some observations have missing values, so we can remove them
+
+updated_nyc_data <- na.omit(new_york_city_data)
+```
+
+```{r PCA}
+##PCA for the dataset, specifically for the numericals, along with the standardization
+#New_York_City
+pca_new_york_city<-prcomp(updated_nyc_data, scale.=TRUE)
+summary(pca_new_york_city)
+pca_new_york_city$rotation
+apply(pca_new_york_city$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+
+```
+Looking at this, to achieve 90% of the variance, we need 9 principal components. 
+PC1 shows that tax class at time of sale  are strongest, residential units is the strongest in PC2, and zip code is the strongest in PC3.Year built is the strongest in PC4.  Commercial units is strongest in PC5 and PC6 and land (square feet) is strongest in PC7. Lot is the strongest in PC8 and finally, commercial units is the strongest in PC9.
+
+
+
+
+```{r ICA}
+set.seed(1234)
+#After PCA, we can use ICA to find the independent components
+ICA_nyc<-fastICA(pca_new_york_city$x[,1:9], n.comp = 9)
+
+#The correlation of the components using the ICA
+independent_component<-ICA_nyc$S
+corre_ica<-cor(independent_component)
+
+min_val <- min(abs(corre_ica), na.rm = TRUE)
+which(abs(corre_ica)==min_val, arr.ind = TRUE)
+
+```
+Since all of the correlation of prinicpal components are close to 0, we can say that they are independent. As such, we can cluster and classify these components. The principal components closest to 0 (and as such are the most independent) are PCA 5 and PCA 9. As such, we will use them as the example visualization.   
+```{r Save Datasets}
+##Raw data
+save(new_york_city_data, file = "new_york_city_data.RData")
+
+##Updated Data
+save(updated_nyc_data, file = "updated_nyc_data.RData")
+
+##PCA Data
+save(pca_new_york_city, file = "pca_new_york_city.RData")
+
+#ICA Data
+save(ICA_nyc, file = "ICA_nyc.RData")
+```
