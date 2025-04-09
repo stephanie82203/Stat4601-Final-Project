@@ -37,4 +37,3 @@ Members : David Wu
 - Led the writing of the final report
 - All members contributed to editing and reviewing 
 
-Hello
