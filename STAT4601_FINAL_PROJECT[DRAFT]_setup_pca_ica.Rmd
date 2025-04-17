@@ -13,7 +13,7 @@ library(fastICA)
 ```
 
 
-```{r Data Setup}
+```{r Data_Setup}
 
 ##Getting the datasets from the Excel files
 manhattan_data<-readxl::read_xlsx(here::here("rollingsales_manhattan.xlsx")) |>janitor::clean_names()
@@ -33,92 +33,131 @@ brooklyn_data<-brooklyn_data[-c(1:4),]
 queens_data<-queens_data[-c(1:4),]
 staten_island_data<-staten_island_data[-c(1:4),]
 
-##The column names are the same for all datasets, so we can use the same vector for all of them
+##The column names are the same for all data sets, so we can use the same vector for all of them
 colnames(manhattan_data)<-col_names
 colnames(bronx_data)<-col_names
 colnames(brooklyn_data)<-col_names
 colnames(queens_data)<-col_names
 colnames(staten_island_data)<-col_names
 
-#In case we are looking overall in New York City, and not specific regions
-new_york_city_data<-rbind(manhattan_data, bronx_data, brooklyn_data, queens_data, staten_island_data)
 
-#Note: This is to be improved on and/or taken up with team
-##Notice how the Easement is NA overall, therefore, we can remove it in the dataset
-##Likewise, other columns are not needed for PCA analysis as they are addresses, sale date, etc. As such, these can be removed too
+#I have decided to to remove the following columns: Neighborhood, Lot, and Zip code as it is similar to  block causing repetitions, and they can be too unique (causing overfitting). I have also decided to remove Easement as they are all NA, address as they are too specific and unique and would be repetitive to block, apartment number as there would be too many NA and it is not important when it comes to the classification, and sale date as it is not important when it comes to classifying as well and too specific and unique. Likewise, I have decided to remove the missing values and the sale price that is greater than 0. Sale price being 0 is the property being transferred, whether leaglly or by family member. Since it is not being sold, it is not important when it comes to the classification. 
 
-#Overall (combined all boroughs)
-new_york_city_data<-new_york_city_data[,-c(2,7,9,10,21)]
+clean_data <- function(data) {
+  data %>%
+    filter(SALE.PRICE != 0) %>%
+    select(
+      -NEIGHBORHOOD, -BLOCK, -LOT, -EASEMENT, 
+      -ADDRESS, -APARTMENT.NUMBER, -SALE.DATE) %>%
+    mutate(
+      BOROUGH= as.numeric(BOROUGH), 
+      BUILDING.CLASS.CATEGORY= as.numeric(as.factor(BUILDING.CLASS.CATEGORY)), 
+      TAX.CLASS.AT.PRESENT= as.numeric(as.factor(TAX.CLASS.AT.PRESENT)), 
+      BUILDING.CLASS.AT.PRESENT= as.numeric(
+        as.factor(BUILDING.CLASS.AT.PRESENT)), 
+      ZIP.CODE= as.numeric(ZIP.CODE), 
+      RESIDENTIAL.UNITS= as.numeric(RESIDENTIAL.UNITS), 
+      COMMERCIAL.UNITS= as.numeric(COMMERCIAL.UNITS), 
+      TOTAL.UNITS= as.numeric(TOTAL.UNITS), 
+      LAND.SQUARE.FEET= as.numeric(LAND.SQUARE.FEET), 
+      GROSS.SQUARE.FEET= as.numeric(GROSS.SQUARE.FEET), 
+      YEAR.BUILT= as.numeric(YEAR.BUILT), 
+      TAX.CLASS.AT.TIME.OF.SALE= as.numeric(
+        as.factor(TAX.CLASS.AT.TIME.OF.SALE)), 
+      BUILDING.CLASS.AT.TIME.OF.SALE= as.numeric(
+        as.factor(BUILDING.CLASS.AT.TIME.OF.SALE)),
+      SALE.PRICE = as.numeric(SALE.PRICE)
+    ) %>%
+    na.omit()
+}
+manhattan_data <- clean_data(manhattan_data)
+bronx_data <- clean_data(bronx_data)
+brooklyn_data <- clean_data(brooklyn_data)
+queens_data <- clean_data(queens_data)
+staten_island_data <- clean_data(staten_island_data)
 
-
-##Fixing the columns as numerics to use Principal Component Analysis
-new_york_city_data<-new_york_city_data |> 
-  mutate(BOROUGH= as.numeric(as.factor(BOROUGH)), 
-         BUILDING.CLASS.CATEGORY= as.numeric(as.factor(BUILDING.CLASS.CATEGORY)), 
-         TAX.CLASS.AT.PRESENT= as.numeric(as.factor(TAX.CLASS.AT.PRESENT)), 
-         BLOCK= as.numeric(BLOCK), 
-         LOT= as.numeric(LOT), 
-         BUILDING.CLASS.AT.PRESENT= as.numeric(as.factor(BUILDING.CLASS.AT.PRESENT)), 
-         ZIP.CODE= as.numeric(ZIP.CODE), 
-         RESIDENTIAL.UNITS= as.numeric(RESIDENTIAL.UNITS), 
-         COMMERCIAL.UNITS= as.numeric(COMMERCIAL.UNITS), 
-         TOTAL.UNITS= as.numeric(TOTAL.UNITS), 
-         LAND.SQUARE.FEET= as.numeric(LAND.SQUARE.FEET), 
-         GROSS.SQUARE.FEET= as.numeric(GROSS.SQUARE.FEET), 
-         YEAR.BUILT= as.numeric(YEAR.BUILT), 
-         TAX.CLASS.AT.TIME.OF.SALE= as.numeric(as.factor(TAX.CLASS.AT.TIME.OF.SALE)), 
-         BUILDING.CLASS.AT.TIME.OF.SALE= as.numeric(as.factor(BUILDING.CLASS.AT.TIME.OF.SALE)),
-         SALE.PRICE = as.numeric(SALE.PRICE))
-
-
-
-
-
-##Some observations have missing values, so we can remove them
-
-updated_nyc_data <- na.omit(new_york_city_data)
+new_york_city_data <- rbind(manhattan_data, bronx_data, brooklyn_data, 
+                            queens_data, staten_island_data)
 ```
+
 
 ```{r PCA}
 ##PCA for the dataset, specifically for the numericals, along with the standardization
 #New_York_City
-pca_new_york_city<-prcomp(updated_nyc_data, scale.=TRUE)
+pca_new_york_city<-prcomp(new_york_city_data, scale.=TRUE)
 summary(pca_new_york_city)
-pca_new_york_city$rotation
 apply(pca_new_york_city$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
 
+#Since Borough is a constant value for each individual borough, we will have to remove it for Principal Component Analysis
+#Brooklyn
+pca_brooklyn<-prcomp(brooklyn_data[,-c(1)], scale.=TRUE)
+summary(pca_brooklyn)
+apply(pca_brooklyn$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Manhattan
+pca_manhattan<-prcomp(manhattan_data[,-c(1)], scale.=TRUE)
+summary(pca_manhattan)
+apply(pca_manhattan$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Bronx
+pca_bronx<-prcomp(bronx_data[,-c(1)], scale.=TRUE)
+summary(pca_bronx)
+apply(pca_bronx$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Queens
+pca_queens<-prcomp(queens_data[,-c(1)], scale.=TRUE)
+summary(pca_queens)
+apply(pca_queens$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Staten Island
+pca_staten_island<-prcomp(staten_island_data[,-c(1)], scale.=TRUE)
+summary(pca_staten_island)
+apply(pca_staten_island$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
 
 ```
-Looking at this, to achieve 90% of the variance, we need 9 principal components. 
-PC1 shows that tax class at time of sale  are strongest, residential units is the strongest in PC2, and zip code is the strongest in PC3.Year built is the strongest in PC4.  Commercial units is strongest in PC5 and PC6 and land (square feet) is strongest in PC7. Lot is the strongest in PC8 and finally, commercial units is the strongest in PC9.
-
 
 
 
 ```{r ICA}
 set.seed(1234)
-#After PCA, we can use ICA to find the independent components
-ICA_nyc<-fastICA(pca_new_york_city$x[,1:9], n.comp = 9)
+#we can also use ICA to find the independent components of the dataset
+ICA_nyc<-fastICA(new_york_city_data, n.comp =8)
+ICA_brooklyn<-fastICA(brooklyn_data, n.comp =7)
+ICA_manhattan<-fastICA(manhattan_data, n.comp =6)
+ICA_bronx<-fastICA(bronx_data, n.comp =6)
+ICA_queens<-fastICA(queens_data, n.comp =7)
+ICA_staten_island<-fastICA(staten_island_data, n.comp =7)
 
-#The correlation of the components using the ICA
-independent_component<-ICA_nyc$S
-corre_ica<-cor(independent_component)
-
-min_val <- min(abs(corre_ica), na.rm = TRUE)
-which(abs(corre_ica)==min_val, arr.ind = TRUE)
 
 ```
-Since all of the correlation of prinicpal components are close to 0, we can say that they are independent. As such, we can cluster and classify these components. The principal components closest to 0 (and as such are the most independent) are PCA 5 and PCA 9. As such, we will use them as the example visualization.   
-```{r Save Datasets}
-##Raw data
-save(new_york_city_data, file = "new_york_city_data.RData")
+Since all of the correlation of prinicpal components are close to 0, we can say that they are independent. 
 
-##Updated Data
-save(updated_nyc_data, file = "updated_nyc_data.RData")
+
+
+```{r Save_Datasets}
+
+save(manhattan_data, file = "manhattan_data.RData")
+save(bronx_data, file = "bronx_data.RData")
+save(brooklyn_data, file = "brooklyn_data.RData")
+save(queens_data, file = "queens_data.RData")
+save(staten_island_data, file = "staten_island_data.RData")
+save(new_york_city_data, file = "new_york_city_data.RData")
 
 ##PCA Data
 save(pca_new_york_city, file = "pca_new_york_city.RData")
+save(pca_brooklyn, file = "pca_brooklyn.RData")
+save(pca_manhattan, file = "pca_manhattan.RData")
+save(pca_bronx, file = "pca_bronx.RData")
+save(pca_queens, file = "pca_queens.RData")
+save(pca_staten_island, file = "pca_staten_island.RData")
+
 
 #ICA Data
 save(ICA_nyc, file = "ICA_nyc.RData")
+save(ICA_brooklyn, file = "ICA_brooklyn.RData")
+save(ICA_manhattan, file = "ICA_manhattan.RData")
+save(ICA_bronx, file = "ICA_bronx.RData")
+save(ICA_queens, file = "ICA_queens.RData")
+save(ICA_staten_island, file = "ICA_staten_island.RData")
+
 ```
