@@ -1,0 +1,791 @@
+---
+title: "STAT4601_FINAL_PROJECT"
+author: "Trae Smith"
+date: "2025-04-03"
+output: 
+  pdf_document: 
+    toc: true
+---
+
+```{r setup, include=FALSE}
+source("get.train.R")
+source("myknn.R")
+source("f.create.grid.R")
+source("draw.circle.R")
+
+library(asbio)
+library(DescTools)
+library(tidyverse)
+library(fastICA)
+library(class)
+library(caret)
+library(pROC)
+library(rpart)
+library(rpart.plot)
+library(nnet)
+library(knitr)
+library(NeuralNetTools)
+```
+
+
+
+
+
+```{r PCA}
+##PCA for the dataset, specifically for the numericals, along with the standardization
+#New_York_City
+pca_new_york_city<-prcomp(new_york_city_data, scale.=TRUE)
+summary(pca_new_york_city)
+apply(pca_new_york_city$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Since Borough is a constant value for each individual borough, we will have to remove it for Principal Component Analysis
+#Brooklyn
+pca_brooklyn<-prcomp(brooklyn_data[,-c(1)], scale.=TRUE)
+summary(pca_brooklyn)
+apply(pca_brooklyn$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Manhattan
+pca_manhattan<-prcomp(manhattan_data[,-c(1)], scale.=TRUE)
+summary(pca_manhattan)
+apply(pca_manhattan$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Bronx
+pca_bronx<-prcomp(bronx_data[,-c(1)], scale.=TRUE)
+summary(pca_bronx)
+apply(pca_bronx$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Queens
+pca_queens<-prcomp(queens_data[,-c(1)], scale.=TRUE)
+summary(pca_queens)
+apply(pca_queens$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+#Staten Island
+pca_staten_island<-prcomp(staten_island_data[,-c(1)], scale.=TRUE)
+summary(pca_staten_island)
+apply(pca_staten_island$rotation, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1]))
+
+
+
+
+
+```
+Looking at this, to achieve 90 percent of the variance, we need 8  principal components for the overall (new york city) data, 7 principal components for Brooklyn, Queens, and Staten Island, and 6 principal components for Manhattan and Bronx. 
+
+The variables that contributed the most to each principal component required to achieve at least 90% variance (in order) for new york city is tax class at time of sale, residential units, year built, commercial units, land (square feet), commercial units, land (square feet), and sale price. 
+
+For Brooklyn, the variables are building class category, residential units, sale price, commercial units, zip code, year built, and commercial units
+
+For Manhattan, the variables are gross square feet, residential units, sale price (for both PC3 and PC4), commercial units, and land (square feet)
+
+For Bronx, the variables are building class category, residential units, land (square feet), zip code, building class at present, and year built
+
+For Queens, the variables are building class category, residential units, zip code, year built, zip code, commercial units, and land (square feet)
+
+Finally, for Staten Island, the variables are building class category, residential units, land (square feet), year built, zip code, land (square feet), and commercial units.
+
+
+
+
+
+```{r ICA}
+set.seed(1234)
+#we can also use ICA to find the independent components of the dataset
+ICA_nyc<-fastICA(new_york_city_data, n.comp =8)
+ICA_brooklyn<-fastICA(brooklyn_data, n.comp =7)
+ICA_manhattan<-fastICA(manhattan_data, n.comp =6)
+ICA_bronx<-fastICA(bronx_data, n.comp =6)
+ICA_queens<-fastICA(queens_data, n.comp =7)
+ICA_staten_island<-fastICA(staten_island_data, n.comp =7)
+
+
+```
+Since all of the correlation of prinicpal components are close to 0, we can say that they are independent. 
+
+
+
+```{r Save_Datasets}
+
+save(manhattan_data, file = "manhattan_data.RData")
+save(bronx_data, file = "bronx_data.RData")
+save(brooklyn_data, file = "brooklyn_data.RData")
+save(queens_data, file = "queens_data.RData")
+save(staten_island_data, file = "staten_island_data.RData")
+save(new_york_city_data, file = "new_york_city_data.RData")
+
+##PCA Data
+save(pca_new_york_city, file = "pca_new_york_city.RData")
+save(pca_brooklyn, file = "pca_brooklyn.RData")
+save(pca_manhattan, file = "pca_manhattan.RData")
+save(pca_bronx, file = "pca_bronx.RData")
+save(pca_queens, file = "pca_queens.RData")
+save(pca_staten_island, file = "pca_staten_island.RData")
+
+
+#ICA Data
+save(ICA_nyc, file = "ICA_nyc.RData")
+save(ICA_brooklyn, file = "ICA_brooklyn.RData")
+save(ICA_manhattan, file = "ICA_manhattan.RData")
+save(ICA_bronx, file = "ICA_bronx.RData")
+save(ICA_queens, file = "ICA_queens.RData")
+save(ICA_staten_island, file = "ICA_staten_island.RData")
+
+```
+
+
+
+
+```{r define_w/o, results='hide', echo=TRUE}
+## First, we will need to define this model for K Nearest Neighbors
+"%w/o%" <- function(x, y) x[!x %in% y]
+
+
+```
+
+
+
+```{r KNN_model}
+
+set.seed(1234)
+
+
+#To ensure that we classify the data by sale price, we will categorize the sale price from 0 to 5.6*10^8 by Very Low, Low, Medium, and High. Since there is $0 for some of the sale prices, due to transfers and other reasons, they are not considered sales. Since they are not considered sales, they could skew the data when it comes to predicting the different class prices, and as such would be removed from this analysis. 
+
+new_york_city_data$PRICE.CAT <-cut(
+    new_york_city_data$SALE.PRICE,
+    breaks = quantile(new_york_city_data$SALE.PRICE, probs = c(0,1/3,2/3,1), na.rm = TRUE),
+    include.lowest = TRUE,
+    labels = c("Low", "Medium", "High"))
+
+##To compare the model across boroughs, i will use the cutoff values for new york city to as the cutoffs for the individual boroughs. 
+
+boroughs_list <- list(
+  Manhattan = manhattan_data,
+  Brooklyn = brooklyn_data,
+  Queens = queens_data,
+  Bronx = bronx_data,
+  StatenIsland = staten_island_data
+)
+
+
+cutoff <- quantile(new_york_city_data$SALE.PRICE, probs = c(0,1/3,2/3,1), na.rm = TRUE)
+
+
+for (name in names(boroughs_list)) {
+  boroughs_list[[name]]$PRICE.CAT <- cut(
+    boroughs_list[[name]]$SALE.PRICE,
+    breaks = cutoff,
+    include.lowest = TRUE,
+    labels = c("Low", "Medium", "High")
+  )
+}
+
+
+
+
+##I will be splitting the new_york_city_data into a training data (80%) and a testing data (20%) to train the models below according to the proportions. 
+splitter  <- createDataPartition(new_york_city_data$PRICE.CAT, p = 0.8, list = FALSE)
+
+
+#Since KNN requires the data to be numeric, we will convert the categorical variables to numeric
+new_york_city_data$PRICE.CAT <- as.numeric(new_york_city_data$PRICE.CAT)
+
+
+train_data <- new_york_city_data[splitter,] 
+test_data <- new_york_city_data[-splitter,]   
+
+
+prop.table(table(train_data$PRICE.CAT))
+
+#This is for the test data for New York (across the 4 price categories). Since there is 4 price categories, we can use the number of nearest neighbors as 4 to classify the data. 
+knn_model_nyc <- knn(train_data, test_data, train_data$PRICE.CAT, k = 4, prob = TRUE)
+summary(knn_model_nyc)
+
+#Using the ICA, we found out that the most indepedent components are the 2nd and 5th component, which is both dominated by sale price (our target variable),  gross square feet, and block, so we will use them to visualize it using myknn
+
+nyc_subset <- new_york_city_data[, c(10,14,15)]
+nyc_subset$PRICE.CAT <- as.numeric(nyc_subset$PRICE.CAT)
+nyc_mat<-as.matrix(nyc_subset)
+nyc_grid<-f.create.grid(nyc_mat, c(10,10))
+
+##Using myknn to visualize the data using the 8th and 9th category
+myknn(k=3, nyc_mat, nyc_grid)
+
+
+#Reverting price categories as factors (1 is low, 2, is medium, 3 is high, 4 is very low)
+train_data$PRICE.CAT <-as.factor(train_data$PRICE.CAT)
+test_data$PRICE.CAT <- as.factor(test_data$PRICE.CAT)
+
+
+
+```
+Looking at the summary, we can see that 284 went to the 1st nearest neighbor, 798 went to the 2nd nearest neighbor, 2799 went to the 3rd nearest neighbor, 2991 went to the 4th nearest neighbor, and 1096 went to the 5th nearest neighbor. This, along with the actual size for each one, shows that the 5th neighbor have a bit more biased compared to the other neighbors, while the 1st neighbor have less bias compared to the other neighbors. This is contradictory, as the 1st neighbor should instead have more bias compared to 5th neighbor. 
+
+
+The chart also shows a significant amount of overlap between the different boroughs towards the beginning, so the lines differentiating them are struggling for a bit. This is due to the fact that the different boroughs are close to each other, and as such, the KNN model is struggling to classify them. This is where the different biases come, as the 5th neighbor is more biased towards the other boroughs, while the 1st neighbor is less biased towards the other boroughs.
+
+
+```{r Confusion_Matrix_and_Model_analysis_for_KNN}
+
+
+#Confusion Matrix
+knn_confusion<-confusionMatrix(knn_model_nyc, test_data$PRICE.CAT)
+metrics <- data.frame(
+  Class = rownames(knn_confusion$byClass),
+  Precision = knn_confusion$byClass[, "Pos Pred Value"],
+  Recall = knn_confusion$byClass[, "Sensitivity"],
+  F1 = knn_confusion$byClass[, "F1"],
+  Balanced_Accuracy = knn_confusion$byClass[, "Balanced Accuracy"],  
+  Specificity = knn_confusion$byClass[, "Specificity"]
+)
+print(metrics)
+
+prob<-attr(knn_model_nyc, "prob")
+
+probs <- list(
+  ifelse(knn_model_nyc == 1, prob, 1 - prob), 
+              ifelse(knn_model_nyc == 2, prob, 1 - prob), 
+              ifelse(knn_model_nyc == 3, prob, 1 - prob)
+  )
+
+
+#To Visualize the ROC for the different Boroughs, along with their AUC values, 
+categories <- levels(test_data$PRICE.CAT)
+colors <- rainbow(length(categories))
+
+
+plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "False Positive Rate", ylab = "True Positive Rate",
+     main = "KNN ROC Curves for Each Price Categories")
+
+auc_values <- c()
+
+# Loop through categories
+for (i in seq_along(as.numeric(categories))) {
+  b <- as.numeric(categories[i])
+  test_data_bin <- ifelse(as.numeric(test_data$PRICE.CAT) == b, 1, 0)
+  probs_bin <- probs[[b]]
+  
+  roc_knn <- roc(test_data_bin, probs_bin)
+  auc_val <- auc(roc_knn)
+  auc_values <- c(auc_values, auc_val)
+  
+  lines(roc_knn, col = colors[i], lwd = 2)
+}
+
+# Add legend with AUC
+legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_values, 3), ")"),
+       col = colors, lwd = 2)
+
+
+```
+
+The Precision, recall, and (as such) F1 score aren't as high, due to the false placements of classes that occurred. The balanced accuracy and specificity is higher as there is a lot of observations, so they'll take that into consideration as well. 
+
+
+We can also see this being applied to the ROC and AUC values, as they're not as low as their precision, recall, and F1 score. 
+
+
+```{r Boroughs Predictions for KNN}
+# Set up a color palette for the categories
+
+# Optional: Save plots as images
+# dir.create("plots")
+
+i <- 0
+for (name in names(boroughs_list)) {
+  borough_data <- boroughs_list[[name]]
+  borough_data$PRICE.CAT <- as.numeric(borough_data$PRICE.CAT)
+  borough.predictors <- borough_data
+  i <- i + 1
+  
+  # Predict
+  preds <- knn(train = train_data,
+               test = borough.predictors,
+               cl = train_data$PRICE.CAT,
+               k = 3, 
+               prob = TRUE)
+  
+  # Confusion matrix
+  knn_confusion <- confusionMatrix(factor(preds), factor(borough_data$PRICE.CAT))
+  
+  cat(name,"\n")
+  print(knn_confusion$overall["Accuracy"])
+  print(knn_confusion$byClass[, c("Sensitivity", "Precision", "Recall", 
+                                  "Balanced Accuracy", "F1", "Specificity")])
+  
+  # Extract probabilities for each class
+  prob <- attr(preds, "prob")
+  knn_probs <- list(
+    ifelse(preds == 1, prob, 1 - prob),
+    ifelse(preds == 2, prob, 1 - prob),
+    ifelse(preds == 3, prob, 1 - prob)
+  )
+  
+ 
+
+  plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+       xlab = "False Positive Rate", ylab = "True Positive Rate",
+       main = paste("K-Nearest Neighbors ROC for", name))
+  
+  auc_knn <- c()
+  
+  for (j in seq_along(categories)) {
+    b <- as.numeric(categories[j])
+    test_knn_bin <- ifelse(borough.predictors$PRICE.CAT == b, 1, 0)
+    probs_bin <- knn_probs[[b]]
+    roc_knn <- roc(response = test_knn_bin, predictor = probs_bin)
+    auc_val <- auc(roc_knn)
+    auc_knn <- c(auc_knn, auc_val)
+    
+    lines(roc_knn, col = colors[j], lwd = 2)
+  }
+  
+  legend("bottomright",
+         legend = paste0("Category ", categories, " (AUC = ", round(auc_knn, 3), ")"),
+         col = colors, lwd = 2)
+  
+  # dev.off()  # uncomment if saving plots to files
+}
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r Classification_Tree_(CART)}
+
+##Training the model for classification trees
+cart_model <- rpart(PRICE.CAT ~ ., data = train_data, method = "class", control = rpart.control(cp=0.001, maxdepth = 4, minsplit = 10))
+cart_model$variable.importance
+##Since Sale price is used as the category, we will be removing it for analysis
+train_data<-train_data[,-c(14)]
+test_data<-test_data[,-c(14)]
+#To ensure all categories are used, we will set maxdepth as 5, while complexity parameter is 0.01 and minimum number of observations is 10 . 
+updated_cart_model<- rpart(PRICE.CAT ~ ., data = train_data, method = "class", control = rpart.control(cp=0.001, maxdepth = 5, minsplit=10))
+
+
+```
+Not only does the classification tree show relies too much on zip code, it causes a major amount of issues when it comes to actually classifying the different boroughs. As such, I have decided to remove zip code to this model. 
+```{r Updated_Tree_Visualization, fig.align='center',fig.width=20, fig.height=10}
+
+#Tree Visualization
+rpart.plot(updated_cart_model, 
+           extra = 106, 
+           faclen = 0,
+           compress=FALSE,
+           tweak=1.5,
+           fallen.leaves = TRUE)
+
+```
+This provides a more comprehensive classification, utilizing blocks, year built, lot, building class at present and at time of sale, and land (square feet) to classify the different boroughs. 
+
+```{r Confusion_Matrix_and_Model_analysis_for_CART}
+
+
+#Predicting the test data
+cart_pred <- predict(updated_cart_model, test_data, type = "class")
+
+#Confusion Matrix
+cart_confusion <- confusionMatrix(cart_pred, test_data$PRICE.CAT)
+cart_metrics <- data.frame(
+  Class = rownames(cart_confusion$byClass),
+  Precision = cart_confusion$byClass[, "Pos Pred Value"],
+  Recall = cart_confusion$byClass[, "Sensitivity"],
+  F1 = cart_confusion$byClass[, "F1"],
+  Balanced_Accuracy = cart_confusion$byClass[, "Balanced Accuracy"],  
+  Specificity = cart_confusion$byClass[, "Specificity"]
+)
+print(cart_metrics)
+
+
+
+cart_probs <- predict(updated_cart_model, test_data, type = "prob")
+cart_probs_list <- list()
+
+for (b in as.numeric(categories)) {
+  cart_probs_list[[b]] <- cart_probs[, b]
+}
+
+
+
+#We will utilize the same colors as before for categories
+
+graphics.off()
+plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "False Positive Rate", ylab = "True Positive Rate",
+     main = "CART ROC Curves for Each Price Categories")
+
+auc_cart <- c()
+
+# Loop through boroughs
+for (i in seq_along(as.numeric(categories))) {
+  b <- as.numeric(categories[i])
+  test_data_bin <- ifelse(as.numeric(test_data$PRICE.CAT) == b, 1, 0)
+  probs_bin <- cart_probs_list[[b]]
+  
+  roc_cart <- roc(test_data_bin, probs_bin)
+  auc_car <- auc(roc_cart)
+  auc_cart <- c(auc_cart, auc_car)
+  
+  lines(roc_cart, col = colors[i], lwd = 2)
+}
+
+#legend with AUC
+legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_cart, 3), ")"),
+       col = colors, lwd = 1)
+
+```
+Looking at this, they're quite a bit of differences in the precision, recall, F1, balanced accuracy, and specificity. Brorough 2 struggled a bit throughout these calculations compared to the other boroughs. 
+
+However, Borough 2 have a pretty high AUC value and ROC curve, along with the other boroughs. This shows that, despite the low calculations for borough 2, it is still a good model to use. 
+
+
+
+```{r CART_Boroughs_Predictions}
+print("CART analysis for each Borough")
+i<-0
+#Seeing how the model fits for each borough
+for (name in names(boroughs_list)) {
+  borough_data <- boroughs_list[[name]]
+  borough_data$PRICE.CAT<-as.numeric(borough_data$PRICE.CAT)
+  
+  # Make sure predictors match training data
+  borough.predictors <- borough_data
+  i<-i+1
+  # Predict
+  preds <- predict(updated_cart_model, newdata = borough.predictors, type = "class")
+  cart_confusion <- confusionMatrix(factor(preds), factor(borough_data$PRICE.CAT))
+  
+  #Printing the Result
+  cat(name,"\n")
+  print(cart_confusion$overall["Accuracy"])
+  print(cart_confusion$byClass[, c("Sensitivity","Precision", "Recall","Balanced Accuracy", "F1", "Specificity")])
+  cat("\n")
+  
+  cart_probs <- predict(updated_cart_model, newdata = borough.predictors, type = "prob")
+  
+  cart_probs_list <- list()
+  for (b in as.numeric(categories)) {
+    cart_probs_list[[b]] <- cart_probs[, b]
+}
+
+
+  plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+      xlab = "False Positive Rate", ylab = "True Positive Rate",
+      main = paste("Neural Network ROC Curves for Each Price Categories for", name))
+  auc_cart <- c()
+
+  for (j in seq_along(categories)) {
+    b <- as.numeric(categories[j])
+    test_cart_bin <- ifelse(as.numeric(borough.predictors$PRICE.CAT) == b, 1, 0)
+    probs_bin <- cart_probs_list[[b]]
+  
+  roc_cart <- roc(response = test_cart_bin, predictor = probs_bin)
+  auc_tree <- auc(roc_cart)
+  auc_cart <- c(auc_cart, auc_tree)
+  
+  lines(roc_cart, col = colors[j], lwd = 2)
+}
+
+  legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_cart, 3), ")"),
+       col = colors, lwd = 2)
+}
+
+
+
+```
+
+```{r Neural_Networks}
+
+##Before we train the neural networks model, we first have to normalize the data
+normalize <- function(x) (x - min(x)) / (max(x) - min(x))
+
+train_x <- as.data.frame(lapply(train_data[, sapply(train_data, is.numeric)], normalize))
+test_x <- as.data.frame(lapply(test_data[, sapply(test_data, is.numeric)], normalize))
+
+# Recombine with labels
+train_nn <- data.frame(PRICE.CAT = train_data$PRICE.CAT, train_x)
+test_nn <- data.frame(PRICE.CAT = test_data$PRICE.CAT, test_x)
+
+##Training the neural networks model, size is 5 due to the amount of boroughs, the maximum iterations is 2500 as it can go up to that amount of iterations before it converges. However, there was overfitting, so i decided to add in decay and reduce the size to 2.
+
+set.seed(1234) #To ensure consistency
+nn_model <- nnet(PRICE.CAT ~. , data = train_nn, size = 6, maxit = 1000, trace = FALSE, decay=0.01)
+summary(nn_model)
+
+```
+This Neural Networks model contains 47 weights and is a 15, 2, 5 model. I6 (which is the zip code) have the most weight when it goes into the 1st hidden layer, though not as much. the 2nd hidden layer is dominated by I5 (which is building class at present) significantly.
+
+The 1st hidden layer dominates output 1, 4, and 5, while the 2nd hidden layer didnt really dominate any output. 
+
+
+
+```{r Confusion_Matrix_and Model_analysis_for_Neural_Networks}
+
+# Predicted classes
+nn_pred <- predict(nn_model, test_nn, type = "class")
+#change as a factor
+nn_conf<-factor(nn_pred, levels = levels(test_nn$PRICE.CAT))
+
+# Confusion matrix + accuracy + F1 + recall + precision
+nn_confusion <- confusionMatrix(nn_conf, test_nn$PRICE.CAT)
+nn_metrics <- data.frame(
+  Class = rownames(nn_confusion$byClass),
+  Precision = nn_confusion$byClass[, "Pos Pred Value"],
+  Recall = nn_confusion$byClass[, "Sensitivity"],
+  F1 = nn_confusion$byClass[, "F1"],
+  Balanced_Accuracy = nn_confusion$byClass[, "Balanced Accuracy"],  
+  Specificity = nn_confusion$byClass[, "Specificity"]
+)
+print(nn_metrics)
+
+
+nn_probs <- predict(nn_model, test_nn, type = "raw")
+nn_probs_list <- list()
+for (b in as.numeric(categories)) {
+  nn_probs_list[[b]] <- nn_probs[, b]
+}
+
+
+#plotting for Neural Networks (ROC and AUC)
+plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "False Positive Rate", ylab = "True Positive Rate",
+     main = "Neural Network ROC Curves for Each Price Categories")
+
+auc_nn <- c()
+
+for (i in seq_along(categories)) {
+  b <- as.numeric(categories[i])
+  test_nn_bin <- ifelse(as.numeric(test_nn$PRICE.CAT) == b, 1, 0)
+  probs_bin <- nn_probs_list[[b]]
+  
+  roc_nn <- roc(response = test_nn_bin, predictor = probs_bin)
+  auc_neunet <- auc(roc_nn)
+  auc_nn <- c(auc_nn, auc_neunet)
+  
+  lines(roc_nn, col = colors[i], lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_nn, 3), ")"),
+       col = colors, lwd = 2)
+
+```
+
+
+
+```{r Borough analysis for Neural Networks}
+#Seeing how the model fits for each borough
+i<-0
+for (name in names(boroughs_list)) {
+  borough_data <- boroughs_list[[name]]
+  borough_data$PRICE.CAT<-as.numeric(borough_data$PRICE.CAT)
+  
+  # Make sure predictors match training data
+  borough.predictors <- borough_data
+  i<-i+1
+  # Predict
+  preds <- predict(nn_model, newdata = borough.predictors, type = "class")
+  
+  nn_confusion <- confusionMatrix(factor(preds, levels=c(1,2,3)), factor(borough_data$PRICE.CAT), mode="everything")  
+ 
+  ##Printing the Result
+  cat(name,"\n")
+  print(nn_confusion$overall["Accuracy"])
+  print(nn_confusion$byClass[, c("Sensitivity","Precision", "Recall","Balanced Accuracy", "F1", "Specificity")])
+  cat("\n")
+  
+  nn_probs <- predict(nn_model, newdata = borough.predictors, type = "raw")
+  
+  nn_probs_list <- list()
+  for (b in as.numeric(categories)) {
+    nn_probs_list[[b]] <- nn_probs[, b]
+}
+
+
+  plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+      xlab = "False Positive Rate", ylab = "True Positive Rate",
+      main = paste("Neural Network ROC Curves for Each Price Categories for ", name))
+  auc_nn <- c()
+
+  for (j in seq_along(categories)) {
+    b <- as.numeric(categories[j])
+    test_nn_bin <- ifelse(as.numeric(borough.predictors$PRICE.CAT) == b, 1, 0)
+    probs_bin <- nn_probs_list[[b]]
+  
+    roc_nn <- roc(response = test_nn_bin, predictor = probs_bin)
+    auc_neunet <- auc(roc_nn)
+    auc_nn <- c(auc_nn, auc_neunet)
+  
+    lines(roc_nn, col = colors[j], lwd = 2)
+}
+
+  legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_nn, 3), ")"),
+       col = colors, lwd = 2)
+}
+
+
+```
+
+
+```{r Logistics_Regression}
+
+##Since Logistics regression is a binary classification, we will use a multinomial regression to classify the data
+#The max iterations is 750 to ensure that it converges
+logistic_model <- multinom(PRICE.CAT ~ ., data = train_data, maxit=750, trace=FALSE)
+summary(logistic_model)
+
+```
+ 
+
+```{r Confusion_Matrix_and_Model_analysis_for_Logistics_Regression}
+
+logistic_pred <- predict(logistic_model, test_data)
+logistic_conf <- factor(logistic_pred, levels = levels(test_data$PRICE.CAT))
+# Confusion matrix + accuracy + F1 + recall + precision
+logistic_confusion <- confusionMatrix(logistic_conf, test_data$PRICE.CAT)
+logistic_metrics <- data.frame(
+  Class = rownames(logistic_confusion$byClass),
+  Precision = logistic_confusion$byClass[, "Pos Pred Value"],
+  Recall = logistic_confusion$byClass[, "Sensitivity"],
+  F1 = logistic_confusion$byClass[, "F1"],
+  Balanced_Accuracy = logistic_confusion$byClass[, "Balanced Accuracy"],  
+  Specificity = logistic_confusion$byClass[, "Specificity"]
+)
+print(logistic_metrics)
+logistic_probs <- predict(logistic_model, test_data, type = "prob")
+logistic_probs_list <- list()
+
+for (b in as.numeric(categories)) {
+  logistic_probs_list[[b]] <- logistic_probs[, b]
+}
+
+#plotting for Logistics Regression (ROC and AUC)
+plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "False Positive Rate", ylab = "True Positive Rate",
+     main = "Multinomial Logistic ROC Curves for Each Borough")
+
+auc_logit <- c()
+
+for (i in seq_along(categories)) {
+  b <- as.numeric(categories[i])
+  test_logit_bin <- ifelse(as.numeric(test_data$PRICE.CAT) == b, 1, 0)
+  probs_bin <- logistic_probs_list[[b]]
+  
+  roc_logit <- roc(response = test_logit_bin, predictor = probs_bin)
+  auc_logistics <- auc(roc_logit)
+  auc_logit <- c(auc_logit, auc_logistics)
+  
+  lines(roc_logit, col = colors[i], lwd = 2)
+}
+
+legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_logit, 3), ")"),
+       col = colors, lwd = 2)
+```
+
+
+
+```{r Borough_analysis_for_Logistics_Regression}
+#Seeing how the model fits for each borough
+i<-0
+for (name in names(boroughs_list)) {
+  borough_data <- boroughs_list[[name]]
+  borough_data$PRICE.CAT<-as.numeric(borough_data$PRICE.CAT)
+  i<-i+1
+  # Ensure that the predictors match training data
+  borough.predictors <- borough_data
+  
+  # Predict
+  preds <- predict(logistic_model, newdata = borough.predictors, type = "class")
+  borough_data$PRICE.CAT <- as.factor(borough_data$PRICE.CAT)
+  logit_confusion <- confusionMatrix(factor(preds), factor(borough_data$PRICE.CAT), mode="everything")
+  
+  #Printing the result
+  cat(name,"\n")
+  print(logit_confusion$overall["Accuracy"])
+  print(logit_confusion$byClass[, c("Sensitivity","Precision", "Recall","Balanced Accuracy", "F1", "Specificity")])
+  cat("\n")
+
+  logit_probs <- predict(logistic_model, newdata = borough.predictors, type = "prob")
+  
+  logit_probs_list <- list()
+  for (b in as.numeric(categories)) {
+    logit_probs_list[[b]] <- logit_probs[, b]
+}
+
+
+  plot(NA, xlim = c(0, 1), ylim = c(0, 1),
+      xlab = "False Positive Rate", ylab = "True Positive Rate",
+      main = paste("Neural Network ROC Curves for Each Price Categories for ", name))
+  auc_logit <- c()
+
+  for (j in seq_along(categories)) {
+    b <- as.numeric(categories[j])
+    test_logit_bin <- ifelse(as.numeric(borough.predictors$PRICE.CAT) == b, 1, 0)
+    probs_bin <- logit_probs_list[[b]]
+  
+    roc_logit <- roc(response = test_logit_bin, predictor = probs_bin)
+    auc_stic <- auc(roc_logit)
+    auc_logit <- c(auc_logit, auc_stic)
+  
+    lines(roc_logit, col = colors[j], lwd = 2)
+}
+
+  legend("bottomright",
+       legend = paste0(categories, " (AUC = ", round(auc_logit, 3), ")"),
+       col = colors, lwd = 2)
+}
+
+
+  
+
+
+
+```
+
+
+
+
+
+```{r AUC_Comparison_and_Final_Analysis}
+
+# AUC values from your models
+auc_comparison <- data.frame(
+  Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
+  Borough1 = c(0.881, 0.909, 0.997, 0.999),
+  Borough2 = c(0.903, 0.873, 0.999, 1),
+  Borough3 = c(0.897, 0.868, 0.966, 0.966),
+  Borough4 = c(0.905, 0.851, 0.969, 0.969),
+  Borough5 = c(0.929, 0.907, 0.991, 1)
+)
+
+auc_comparison
+```
+
+Amongst all of these data sets, we can see that the Neural Networks model as well as the Multinomial Logistics Regression model are the most efficient when it comes to the classification of the different boroughs. Since they have close to perfect precision, recall, F1, balanced accuracy, and specificity, as well as having a near perfect ROC curve and AUC value, these two would be the best models to use for future data sets relating to classifying the different boroughs based on the different features. The Classification Tree model and the K-Nearest Neighbors is a suitable alternative, as it also have a high amount of precision, recall, F1, balanced accuracy, and specificity, as well as a high ROC curve and AUC value. If Neural Networks and Logistics Regression are not available, then these would be the next best model to use.  
+
+
+
+
+
+
+
