@@ -31,7 +31,7 @@ library(NeuralNetTools)
 
 
 
-```{r PCA}
+```{r PCA, echo=FALSE}
 ##PCA for the dataset, specifically for the numericals, along with the standardization
 #New_York_City
 pca_new_york_city<-prcomp(new_york_city_data, scale.=TRUE)
@@ -87,7 +87,7 @@ Finally, for Staten Island, the variables are building class category, residenti
 
 
 
-```{r ICA}
+```{r ICA, echo=FALSE}
 set.seed(1234)
 #we can also use ICA to find the independent components of the dataset
 ICA_nyc<-fastICA(new_york_city_data, n.comp =8)
@@ -98,12 +98,15 @@ ICA_queens<-fastICA(queens_data, n.comp =7)
 ICA_staten_island<-fastICA(staten_island_data, n.comp =7)
 
 
+
+
+
 ```
-Since all of the correlation of prinicpal components are close to 0, we can say that they are independent. 
+Since all of the correlation of prinicipal components are close to 0, we can say that they are independent. 
 
 
 
-```{r Save_Datasets}
+```{r Save_Datasets, echo=FALSE}
 
 save(manhattan_data, file = "manhattan_data.RData")
 save(bronx_data, file = "bronx_data.RData")
@@ -143,7 +146,7 @@ save(ICA_staten_island, file = "ICA_staten_island.RData")
 
 
 
-```{r KNN_model}
+```{r KNN_model, echo=FALSE}
 
 set.seed(1234)
 
@@ -193,16 +196,18 @@ new_york_city_data$PRICE.CAT <- as.numeric(new_york_city_data$PRICE.CAT)
 train_data <- new_york_city_data[splitter,] 
 test_data <- new_york_city_data[-splitter,]   
 
+#Since Sale Price is the target variable, we will remove it from the training and testing data 
+train_data <- train_data[,-c(14)]
+test_data <- test_data[,-c(14)]
 
-prop.table(table(train_data$PRICE.CAT))
 
-#This is for the test data for New York (across the 4 price categories). Since there is 4 price categories, we can use the number of nearest neighbors as 4 to classify the data. 
-knn_model_nyc <- knn(train_data, test_data, train_data$PRICE.CAT, k = 4, prob = TRUE)
+#This is for the test data for New York (across the 3 price categories). Since there is 3 price categories, we can use the number of nearest neighbors as 3 to classify the data. 
+knn_model_nyc <- knn(train_data, test_data, train_data$PRICE.CAT, k = 3, prob = TRUE)
 summary(knn_model_nyc)
 
 #Using the ICA, we found out that the most indepedent components are the 2nd and 5th component, which is both dominated by sale price (our target variable),  gross square feet, and block, so we will use them to visualize it using myknn
 
-nyc_subset <- new_york_city_data[, c(10,14,15)]
+nyc_subset <- new_york_city_data[, c(9,10,15)]
 nyc_subset$PRICE.CAT <- as.numeric(nyc_subset$PRICE.CAT)
 nyc_mat<-as.matrix(nyc_subset)
 nyc_grid<-f.create.grid(nyc_mat, c(10,10))
@@ -218,17 +223,15 @@ test_data$PRICE.CAT <- as.factor(test_data$PRICE.CAT)
 
 
 ```
-Looking at the summary, we can see that 284 went to the 1st nearest neighbor, 798 went to the 2nd nearest neighbor, 2799 went to the 3rd nearest neighbor, 2991 went to the 4th nearest neighbor, and 1096 went to the 5th nearest neighbor. This, along with the actual size for each one, shows that the 5th neighbor have a bit more biased compared to the other neighbors, while the 1st neighbor have less bias compared to the other neighbors. This is contradictory, as the 1st neighbor should instead have more bias compared to 5th neighbor. 
+Looking at the summary, we can see that 1450 went to the 1st nearest neighbor, 1462 went to the 2nd nearest neighbor, and 1695  went to the 3rd nearest neighbor. This shows that there is a slight bias towards the 3rd category (High), compared to the other 2 categories. 
 
 
-The chart also shows a significant amount of overlap between the different boroughs towards the beginning, so the lines differentiating them are struggling for a bit. This is due to the fact that the different boroughs are close to each other, and as such, the KNN model is struggling to classify them. This is where the different biases come, as the 5th neighbor is more biased towards the other boroughs, while the 1st neighbor is less biased towards the other boroughs.
 
-
-```{r Confusion_Matrix_and_Model_analysis_for_KNN}
+```{r Confusion_Matrix_and_Model_analysis_for_KNN, echo=FALSE}
 
 
 #Confusion Matrix
-knn_confusion<-confusionMatrix(knn_model_nyc, test_data$PRICE.CAT)
+knn_confusion<-confusionMatrix(knn_model_nyc, factor(test_data$PRICE.CAT))
 metrics <- data.frame(
   Class = rownames(knn_confusion$byClass),
   Precision = knn_confusion$byClass[, "Pos Pred Value"],
@@ -249,7 +252,7 @@ probs <- list(
 
 
 #To Visualize the ROC for the different Boroughs, along with their AUC values, 
-categories <- levels(test_data$PRICE.CAT)
+categories <- levels(factor(test_data$PRICE.CAT))
 colors <- rainbow(length(categories))
 
 
@@ -280,13 +283,13 @@ legend("bottomright",
 
 ```
 
-The Precision, recall, and (as such) F1 score aren't as high, due to the false placements of classes that occurred. The balanced accuracy and specificity is higher as there is a lot of observations, so they'll take that into consideration as well. 
+Other from Specificity, the KNN model doesn't have large percentages. Category 3 (high) is the most accurate among the 3, while category 2 is the least. 
 
 
-We can also see this being applied to the ROC and AUC values, as they're not as low as their precision, recall, and F1 score. 
+We can also see this being applied to the ROC and AUC values, with category 3 having the highest AUC value, then after is category 1 and finally category 2. 
 
 
-```{r Boroughs Predictions for KNN}
+```{r Boroughs Predictions for KNN, echo=FALSE}
 # Set up a color palette for the categories
 
 # Optional: Save plots as images
@@ -296,7 +299,7 @@ i <- 0
 for (name in names(boroughs_list)) {
   borough_data <- boroughs_list[[name]]
   borough_data$PRICE.CAT <- as.numeric(borough_data$PRICE.CAT)
-  borough.predictors <- borough_data
+  borough.predictors <- borough_data[-c(14)]
   i <- i + 1
   
   # Predict
@@ -354,6 +357,7 @@ for (name in names(boroughs_list)) {
 
 ```
 
+Seeing this, the individual boroughs had moderate accuracy, for each category. This is reinforced with the ROC and AUC curves. 
 
 
 
@@ -366,15 +370,10 @@ for (name in names(boroughs_list)) {
 
 
 
-
-```{r Classification_Tree_(CART)}
+```{r Classification_Tree_(CART), echo=FALSE}
 
 ##Training the model for classification trees
 cart_model <- rpart(PRICE.CAT ~ ., data = train_data, method = "class", control = rpart.control(cp=0.001, maxdepth = 4, minsplit = 10))
-cart_model$variable.importance
-##Since Sale price is used as the category, we will be removing it for analysis
-train_data<-train_data[,-c(14)]
-test_data<-test_data[,-c(14)]
 #To ensure all categories are used, we will set maxdepth as 5, while complexity parameter is 0.01 and minimum number of observations is 10 . 
 updated_cart_model<- rpart(PRICE.CAT ~ ., data = train_data, method = "class", control = rpart.control(cp=0.001, maxdepth = 5, minsplit=10))
 
@@ -392,9 +391,8 @@ rpart.plot(updated_cart_model,
            fallen.leaves = TRUE)
 
 ```
-This provides a more comprehensive classification, utilizing blocks, year built, lot, building class at present and at time of sale, and land (square feet) to classify the different boroughs. 
-
-```{r Confusion_Matrix_and_Model_analysis_for_CART}
+This provides a more comprehensive classification, utilizing zip code, year built, gross square feet, and borough (for overall), to decide which category the property belongs to in terms of sale price. 
+```{r Confusion_Matrix_and_Model_analysis_for_CART, echo=FALSE}
 
 
 #Predicting the test data
@@ -451,13 +449,11 @@ legend("bottomright",
        col = colors, lwd = 1)
 
 ```
-Looking at this, they're quite a bit of differences in the precision, recall, F1, balanced accuracy, and specificity. Brorough 2 struggled a bit throughout these calculations compared to the other boroughs. 
-
-However, Borough 2 have a pretty high AUC value and ROC curve, along with the other boroughs. This shows that, despite the low calculations for borough 2, it is still a good model to use. 
+Looking at this, it wasn't as accurate, especially for the 2nd category (medium), which is the least accurate. This is also shown in the ROC chart and AUC values, showing that the 2nd category was not predicted as accurate as the other 2 categories.  
 
 
 
-```{r CART_Boroughs_Predictions}
+```{r CART_Boroughs_Predictions, echo=FALSE}
 print("CART analysis for each Borough")
 i<-0
 #Seeing how the model fits for each borough
@@ -488,7 +484,7 @@ for (name in names(boroughs_list)) {
 
   plot(NA, xlim = c(0, 1), ylim = c(0, 1),
       xlab = "False Positive Rate", ylab = "True Positive Rate",
-      main = paste("Neural Network ROC Curves for Each Price Categories for", name))
+      main = paste("CART ROC Curves for Each Price Categories for", name))
   auc_cart <- c()
 
   for (j in seq_along(categories)) {
@@ -511,8 +507,8 @@ for (name in names(boroughs_list)) {
 
 
 ```
-
-```{r Neural_Networks}
+Other from Manhattan, in which it essentially guessed, the CART model was able to predict some of the price categories of the individual boroughs. This could be that Manhattan could be an outlier when it comes to some sale prices, which caused a drop of accurate predictions. 
+```{r Neural_Networks, echo=FALSE}
 
 ##Before we train the neural networks model, we first have to normalize the data
 normalize <- function(x) (x - min(x)) / (max(x) - min(x))
@@ -524,26 +520,24 @@ test_x <- as.data.frame(lapply(test_data[, sapply(test_data, is.numeric)], norma
 train_nn <- data.frame(PRICE.CAT = train_data$PRICE.CAT, train_x)
 test_nn <- data.frame(PRICE.CAT = test_data$PRICE.CAT, test_x)
 
+
 ##Training the neural networks model, size is 5 due to the amount of boroughs, the maximum iterations is 2500 as it can go up to that amount of iterations before it converges. However, there was overfitting, so i decided to add in decay and reduce the size to 2.
 
 set.seed(1234) #To ensure consistency
 nn_model <- nnet(PRICE.CAT ~. , data = train_nn, size = 6, maxit = 1000, trace = FALSE, decay=0.01)
-summary(nn_model)
+
 
 ```
-This Neural Networks model contains 47 weights and is a 15, 2, 5 model. I6 (which is the zip code) have the most weight when it goes into the 1st hidden layer, though not as much. the 2nd hidden layer is dominated by I5 (which is building class at present) significantly.
-
-The 1st hidden layer dominates output 1, 4, and 5, while the 2nd hidden layer didnt really dominate any output. 
+This Neural Networks model contains 97 weights and is a 14, 6 (hidden layers), 1 model.
 
 
 
-```{r Confusion_Matrix_and Model_analysis_for_Neural_Networks}
+```{r Confusion_Matrix_and Model_analysis_for_Neural_Networks, echo=FALSE}
 
 # Predicted classes
 nn_pred <- predict(nn_model, test_nn, type = "class")
 #change as a factor
 nn_conf<-factor(nn_pred, levels = levels(test_nn$PRICE.CAT))
-
 # Confusion matrix + accuracy + F1 + recall + precision
 nn_confusion <- confusionMatrix(nn_conf, test_nn$PRICE.CAT)
 nn_metrics <- data.frame(
@@ -591,7 +585,7 @@ legend("bottomright",
 
 
 
-```{r Borough analysis for Neural Networks}
+```{r Borough analysis for Neural Networks, echo=FALSE}
 #Seeing how the model fits for each borough
 i<-0
 for (name in names(boroughs_list)) {
@@ -604,7 +598,9 @@ for (name in names(boroughs_list)) {
   # Predict
   preds <- predict(nn_model, newdata = borough.predictors, type = "class")
   
-  nn_confusion <- confusionMatrix(factor(preds, levels=c(1,2,3)), factor(borough_data$PRICE.CAT), mode="everything")  
+  nn_confusion <- confusionMatrix(factor(preds, levels=c(1,2,3)), factor(borough_data$PRICE.CAT), mode="everything") 
+  
+  
  
   ##Printing the Result
   cat(name,"\n")
@@ -644,19 +640,18 @@ for (name in names(boroughs_list)) {
 
 
 ```
+While the overall data was able to predict fairly well, for each individual borough, the model struggled. It caused all of the points to be predicted into the 3rd category (high), which prevents it to perform well. 
 
-
-```{r Logistics_Regression}
+```{r Logistics_Regression, echo=FALSE}
 
 ##Since Logistics regression is a binary classification, we will use a multinomial regression to classify the data
 #The max iterations is 750 to ensure that it converges
 logistic_model <- multinom(PRICE.CAT ~ ., data = train_data, maxit=750, trace=FALSE)
-summary(logistic_model)
 
 ```
  
 
-```{r Confusion_Matrix_and_Model_analysis_for_Logistics_Regression}
+```{r Confusion_Matrix_and_Model_analysis_for_Logistics_Regression, echo=FALSE}
 
 logistic_pred <- predict(logistic_model, test_data)
 logistic_conf <- factor(logistic_pred, levels = levels(test_data$PRICE.CAT))
@@ -704,7 +699,7 @@ legend("bottomright",
 
 
 
-```{r Borough_analysis_for_Logistics_Regression}
+```{r Borough_analysis_for_Logistics_Regression, echo=FALSE}
 #Seeing how the model fits for each borough
 i<-0
 for (name in names(boroughs_list)) {
@@ -735,7 +730,7 @@ for (name in names(boroughs_list)) {
 
   plot(NA, xlim = c(0, 1), ylim = c(0, 1),
       xlab = "False Positive Rate", ylab = "True Positive Rate",
-      main = paste("Neural Network ROC Curves for Each Price Categories for ", name))
+      main = paste("Logistics Regression ROC Curves for Each Price Categories for ", name))
   auc_logit <- c()
 
   for (j in seq_along(categories)) {
@@ -755,11 +750,6 @@ for (name in names(boroughs_list)) {
        col = colors, lwd = 2)
 }
 
-
-  
-
-
-
 ```
 
 
@@ -768,20 +758,77 @@ for (name in names(boroughs_list)) {
 
 ```{r AUC_Comparison_and_Final_Analysis}
 
-# AUC values from your models
-auc_comparison <- data.frame(
+# AUC values from the models, overall
+auc_comparison_nyc <- data.frame(
   Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
-  Borough1 = c(0.881, 0.909, 0.997, 0.999),
-  Borough2 = c(0.903, 0.873, 0.999, 1),
-  Borough3 = c(0.897, 0.868, 0.966, 0.966),
-  Borough4 = c(0.905, 0.851, 0.969, 0.969),
-  Borough5 = c(0.929, 0.907, 0.991, 1)
+  Low = c(0.721, 0.77, 0.744, 0.655),
+  Medium = c(0.687, 0.704, 0.548, 0.618),
+  High = c(0.802, 0.852, 0.777, 0.754)
 )
 
-auc_comparison
-```
+auc_comparison_nyc
 
-Amongst all of these data sets, we can see that the Neural Networks model as well as the Multinomial Logistics Regression model are the most efficient when it comes to the classification of the different boroughs. Since they have close to perfect precision, recall, F1, balanced accuracy, and specificity, as well as having a near perfect ROC curve and AUC value, these two would be the best models to use for future data sets relating to classifying the different boroughs based on the different features. The Classification Tree model and the K-Nearest Neighbors is a suitable alternative, as it also have a high amount of precision, recall, F1, balanced accuracy, and specificity, as well as a high ROC curve and AUC value. If Neural Networks and Logistics Regression are not available, then these would be the next best model to use.  
+
+
+
+# AUC values from the models, borough-wise
+#Brooklyn
+auc_comparison_brooklyn <- data.frame(
+  Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
+  Low = c(0.788, 0.688, 0.579, 0.606),
+  Medium = c(0.783, 0.651, 0.524, 0.642),
+  High = c(0.828, 0.735, 0.547, 0.691)
+)
+
+#Manhattan
+auc_comparison_manhattan <- data.frame(
+  Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
+  Low = c(0.86, 0.512, 0.654, 0.526),
+  Medium = c(0.906, 0.495, 0.564, 0.706),
+  High = c(0.878, 0.507, 0.502, 0.524)
+)
+
+#Bronx
+auc_comparison_bronx <- data.frame(
+  Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
+  Low = c(0.851, 0.757, 0.548, 0.722),
+  Medium = c(0.818, 0.679, 0.537, 0.614),
+  High = c(0.891, 0.842, 0.508, 0.808)
+)
+
+#Queens
+auc_comparison_queens <- data.frame(
+  Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
+  Low = c(0.84, 0.787, 0.562, 0.558),
+  Medium = c(0.823, 0.706, 0.495, 0.546),
+  High = c(0.878, 0.831, 0.537, 0.593)
+)
+
+#Staten Island
+auc_comparison_staten_island <- data.frame(
+  Model = c("KNN", "CART", "Neural Net", "Multinomial LR"),
+  Low = c(0.888, 0.804, 0.581, 0.626),
+  Medium = c(0.858, 0.735, 0.453, 0.553),
+  High = c(0.907, 0.874, 0.553, 0.64)
+)
+
+auc_comparison_brooklyn
+auc_comparison_manhattan
+auc_comparison_bronx
+auc_comparison_queens
+auc_comparison_staten_island
+
+```
+Looking at this, overall, we can tell that the CART (classification trees) is the best model to use overall, as their AUC values are the highest, KNN is the second best, so it is also an alternative in case we are unable to use CART. The Neural Net is 3rd, but as what we will mention later, it is not as useful when it comes to the individual boroughs. Finally, for over all the 5 boroughs, the multinomial logistic regression is the least effective among the 4. 
+
+
+
+Looking at each individual borough, we can see that Neural Net underperform compared to the other 3 models. This was due to its predictions having it all into the "High" Category, creating large issues. Likewise, when it comes to individual boroughs, we can see that K- Nearest Neighbors is more effective than the other 3 models, with Classification Trees being in second. 
+
+
+So, when it comes to the individual boroughs, classifying based on sale price would be more effective using K-Nearest Neighbors, while for the overall data of New York City, we would instead use Classification Trees.
+
+
 
 
 
