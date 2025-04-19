@@ -27,10 +27,6 @@ library(knitr)
 library(NeuralNetTools)
 ```
 
-
-
-
-
 ```{r PCA, echo=FALSE}
 ##PCA for the dataset, specifically for the numericals, along with the standardization
 #New_York_City
@@ -134,7 +130,79 @@ save(ICA_staten_island, file = "ICA_staten_island.RData")
 
 ```
 
+```{r Linear_Regression, echo=FALSE}
+#Vs Gross Square Feet
+lr_model <- lm(SALE.PRICE ~ GROSS.SQUARE.FEET, data = new_york_city_data)
+summary(lr_model)
+```
 
+```{r Analysis_overall_for_Linear_Regression, echo=FALSE}
+
+predicted_prices <- predict(lr_model, newdata = new_york_city_data)
+
+# Calculate Mean Squared Error (MSE)
+mse <- mean((new_york_city_data$SALE.PRICE - predicted_prices)^2)
+
+# Root Mean Squared Error (RMSE)
+rmse <- sqrt(mse)
+
+
+plot(new_york_city_data$GROSS.SQUARE.FEET, new_york_city_data$SALE.PRICE,
+     main = "Linear Regression: Price vs. Size",
+     xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+abline(lr_model, col = "red", lwd = 2)
+
+```
+
+
+
+
+```{r Individual_Borough_Analysis, echo=FALSE}
+
+boroughs_list <- list(
+  Manhattan = manhattan_data,
+  Brooklyn = brooklyn_data,
+  Queens = queens_data,
+  Bronx = bronx_data,
+  StatenIsland = staten_island_data
+)
+
+for (name in names(boroughs_list)) {
+  cat("===== Borough:", name, "=====\n")
+  
+  borough_data <- boroughs_list[[name]]
+  borough_data <- borough_data[borough_data$SALE.PRICE > 0 & borough_data$GROSS.SQUARE.FEET > 0, ]
+  borough_data <- na.omit(borough_data)
+  
+  if (nrow(borough_data) < 10) next  # skip small datasets
+
+  lm_model <- lm(SALE.PRICE ~ GROSS.SQUARE.FEET, data = borough_data)
+  pred <- predict(lm_model, newdata = borough_data)
+
+  mse <- mean((borough_data$SALE.PRICE - pred)^2)
+  rmse <- sqrt(mse)
+  r2 <- summary(lm_model)$r.squared
+  
+  cat("RMSE:", round(rmse, 2), "\n")
+  cat("R²:", round(r2, 4), "\n\n")
+  
+  
+  plot(borough_data$GROSS.SQUARE.FEET, borough_data$SALE.PRICE,
+       main = paste("Linear Regression -", name),
+       xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+
+  abline(lm_model, col = "red", lwd = 2)
+
+}
+
+
+
+
+```
+The scatterplots show that the majority of properties cluster tightly in a lower range of square footage and sale price, with a few extreme outliers (often luxury properties) stretching the scale. This compresses the main data area and visually hides much of the structure. It also suggests that linear regression may struggle to model the full range of sale prices effectively.
+
+
+For the individual Boroughs, you can tell that Staten Island have the highest sale price per gross square feet
 
 
 ```{r define_w/o, results='hide', echo=TRUE}
@@ -160,14 +228,6 @@ new_york_city_data$PRICE.CAT <-cut(
     labels = c("Low", "Medium", "High"))
 
 ##To compare the model across boroughs, i will use the cutoff values for new york city to as the cutoffs for the individual boroughs. 
-
-boroughs_list <- list(
-  Manhattan = manhattan_data,
-  Brooklyn = brooklyn_data,
-  Queens = queens_data,
-  Bronx = bronx_data,
-  StatenIsland = staten_island_data
-)
 
 
 cutoff <- quantile(new_york_city_data$SALE.PRICE, probs = c(0,1/3,2/3,1), na.rm = TRUE)
@@ -484,7 +544,7 @@ for (name in names(boroughs_list)) {
 
   plot(NA, xlim = c(0, 1), ylim = c(0, 1),
       xlab = "False Positive Rate", ylab = "True Positive Rate",
-      main = paste("CART ROC Curves for Each Price Categories for", name))
+      main = paste("CART ROC Curves for", name))
   auc_cart <- c()
 
   for (j in seq_along(categories)) {
@@ -618,7 +678,7 @@ for (name in names(boroughs_list)) {
 
   plot(NA, xlim = c(0, 1), ylim = c(0, 1),
       xlab = "False Positive Rate", ylab = "True Positive Rate",
-      main = paste("Neural Network ROC Curves for Each Price Categories for ", name))
+      main = paste("Neural Network ROC Curves for ", name))
   auc_nn <- c()
 
   for (j in seq_along(categories)) {
@@ -730,7 +790,7 @@ for (name in names(boroughs_list)) {
 
   plot(NA, xlim = c(0, 1), ylim = c(0, 1),
       xlab = "False Positive Rate", ylab = "True Positive Rate",
-      main = paste("Logistics Regression ROC Curves for Each Price Categories for ", name))
+      main = paste("LR ROC Curves for ", name))
   auc_logit <- c()
 
   for (j in seq_along(categories)) {
