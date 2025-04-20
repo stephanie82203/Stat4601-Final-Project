@@ -131,20 +131,49 @@ save(ICA_staten_island, file = "ICA_staten_island.RData")
 ```
 
 ```{r Linear_Regression, echo=FALSE}
+
+borough_list<-list(
+  Manhattan=manhattan_data,
+  Brooklyn= brooklyn_data,
+  Queens=queens_data,
+  Bronx=bronx_data,
+  Staten_Island=staten_island_data
+)
+
+splitter  <- createDataPartition(new_york_city_data$SALE.PRICE, p = 0.8, list = FALSE)
+
+
+train_data <- new_york_city_data[splitter,] 
+test_data <- new_york_city_data[-splitter,]  
 #Vs Gross Square Feet
 lr_model <- lm(SALE.PRICE ~ GROSS.SQUARE.FEET, data = new_york_city_data)
 summary(lr_model)
+
+#For Manhattan
+manhattan_lr<-lm(SALE.PRICE ~ GROSS.SQUARE.FEET, data = manhattan_data)
+summary(manhattan_lr)
+
+#For Bronx
+bronx_lr<-lm(SALE.PRICE~GROSS.SQUARE.FEET,data=bronx_data)
+summary(bronx_lr)
+
+#For Brooklyn
+brooklyn_lr<-lm(SALE.PRICE~GROSS.SQUARE.FEET, data=brooklyn_data)
+summary(brooklyn_lr)
+
+
+#For Queens
+queens_lr<-lm(SALE.PRICE~GROSS.SQUARE.FEET,data=queens_data)
+summary(queens_lr)
+
+#For Staten Island
+staten_island_lr<-lm(SALE.PRICE~GROSS.SQUARE.FEET, data=staten_island_data)
+summary(staten_island_lr)
+
 ```
 
 ```{r Analysis_overall_for_Linear_Regression, echo=FALSE}
 
-predicted_prices <- predict(lr_model, newdata = new_york_city_data)
-
-# Calculate Mean Squared Error (MSE)
-mse <- mean((new_york_city_data$SALE.PRICE - predicted_prices)^2)
-
-# Root Mean Squared Error (RMSE)
-rmse <- sqrt(mse)
 
 
 plot(new_york_city_data$GROSS.SQUARE.FEET, new_york_city_data$SALE.PRICE,
@@ -152,57 +181,220 @@ plot(new_york_city_data$GROSS.SQUARE.FEET, new_york_city_data$SALE.PRICE,
      xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
 abline(lr_model, col = "red", lwd = 2)
 
+
+
+#For Manhattan
+plot(manhattan_data$GROSS.SQUARE.FEET, manhattan_data$SALE.PRICE,
+     main = "Linear Regression: for Manhattan",
+     xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+abline(manhattan_lr, col = "red", lwd = 2)
+
+
+#For Brooklyn
+plot(brooklyn_data$GROSS.SQUARE.FEET, brooklyn_data$SALE.PRICE,
+     main = "Linear Regression: for Brooklyn",
+     xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+abline(brooklyn_lr, col = "red", lwd = 2)
+
+#For Bronx
+plot(bronx_data$GROSS.SQUARE.FEET, bronx_data$SALE.PRICE,
+     main = "Linear Regression: for Bronx",
+     xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+abline(bronx_lr, col = "red", lwd = 2)
+
+
+#For Queens
+plot(queens_data$GROSS.SQUARE.FEET, queens_data$SALE.PRICE,
+     main = "Linear Regression: for Queens",
+     xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+abline(queens_lr, col = "red", lwd = 2)
+
+#For Staten Island
+plot(staten_island_data$GROSS.SQUARE.FEET, staten_island_data$SALE.PRICE,
+     main = "Linear Regression: for Staten Island",
+     xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
+abline(staten_island_lr, col = "red", lwd = 2)
+
+
+
+
 ```
 
+The scatterplots show that the majority of properties cluster tightly in a lower range of square footage and sale price, with a few extreme outliers (often luxury properties) stretching the scale. This compresses the main data area and visually hides much of the structure. It also suggests that linear regression may struggle to model the full range of sale prices effectively.
 
+Looking at how it tried to predict the general path, we can say that it wouldn't be effective, as the cluster at the beginning causes a lot of error. Since this is Linear Regression, It wouldn't be able to create curve to reduce the amount of error. This outlines the issue when it comes to Linear Regression. 
 
+```{r Neural Networks model, echo=FALSE}
 
-```{r Individual_Borough_Analysis, echo=FALSE}
+##Before we train the neural networks model, we first have to normalize the data
+normalize <- function(x) (x - min(x)) / (max(x) - min(x))
 
-boroughs_list <- list(
-  Manhattan = manhattan_data,
-  Brooklyn = brooklyn_data,
-  Queens = queens_data,
-  Bronx = bronx_data,
-  StatenIsland = staten_island_data
-)
+train_nn <- as.data.frame(lapply(train_data[, sapply(train_data, is.numeric)], normalize))
+test_nn <- as.data.frame(lapply(test_data[, sapply(test_data, is.numeric)], normalize))
+train_nn<-train_nn[,-c(15)]
+test_nn<-test_nn[,-c(15)]
+set.seed(1234) #To ensure consistency
+nn_mod <- nnet(SALE.PRICE ~GROSS.SQUARE.FEET , data = train_nn, size = 3, maxit = 1000, trace = FALSE, decay=0.01)
 
-for (name in names(boroughs_list)) {
-  cat("===== Borough:", name, "=====\n")
-  
-  borough_data <- boroughs_list[[name]]
-  borough_data <- borough_data[borough_data$SALE.PRICE > 0 & borough_data$GROSS.SQUARE.FEET > 0, ]
-  borough_data <- na.omit(borough_data)
-  
-  if (nrow(borough_data) < 10) next  # skip small datasets
+plotnet(nn_mod, y_names="Price", x_names="G.SqFt")
+title(main = "Neural Network Model Overall", cex.main = 1.2)
 
-  lm_model <- lm(SALE.PRICE ~ GROSS.SQUARE.FEET, data = borough_data)
-  pred <- predict(lm_model, newdata = borough_data)
-
-  mse <- mean((borough_data$SALE.PRICE - pred)^2)
-  rmse <- sqrt(mse)
-  r2 <- summary(lm_model)$r.squared
-  
-  cat("RMSE:", round(rmse, 2), "\n")
-  cat("R²:", round(r2, 4), "\n\n")
-  
-  
-  plot(borough_data$GROSS.SQUARE.FEET, borough_data$SALE.PRICE,
-       main = paste("Linear Regression -", name),
-       xlab = "Gross Sq Ft", ylab = "Sale Price", pch = 20, col = "steelblue")
-
-  abline(lm_model, col = "red", lwd = 2)
-
+for (name in names(borough_list)){
+  borough_data<-borough_list[[name]]
+  borough_nn<-as.data.frame(lapply(borough_data[, sapply(borough_data, is.numeric)], normalize))
+  borough_nn_mod<-nnet(SALE.PRICE ~GROSS.SQUARE.FEET , data = borough_nn, size = 3, maxit = 1000, trace = FALSE, decay=0.01)
+  title_nn<-paste0("Neural Network Model for ", name)
+  plotnet(borough_nn_mod, y_names="Price", x_names="G.SqFt")
+  title(main = title_nn, cex.main = 1.2)
 }
 
 
 
+```
+This shows that its a 1-3-1 neural network with 10 weights. You can notice that gross square feet isn't as thick of a line compared to the function node, except for hidden layer 3. This shows that among the 3 hidden layers, Gross Square Feet have a strong influence to the 3rd hidden layer. Likewise, hidden layer 3 have a strong influence when it comes to the output variable (that is, Sale Price). This shows that, for Manhattan, there is a strong influence from gross square feet to hidden layer 3 and from hidden layer 3 to sale price. This indicates a strong influence from Gross Square Feet to the Sale Price for Manhattan. 
+
+
+```{r Decision/Classification Tree}
+
+
+# Fit the tree (regression or classification)
+tree_model <- rpart(SALE.PRICE ~ GROSS.SQUARE.FEET, data = train_data, method = "anova")
+
+# Visualize it
+rpart.plot(tree_model,
+           type = 2,          # label all nodes
+           extra = 101,       # show predicted value and % of observations
+           fallen.leaves = TRUE,
+           tweak = 1.2,
+           main = "Decision Tree for Predicting Sale Price (Overall)")
+
+
+#For Borough
+for (name in names(borough_list)){
+borough_tree<-rpart(SALE.PRICE ~ GROSS.SQUARE.FEET, data=borough_list[[name]], method = "anova")
+tree_title<- paste("Decision Tree for Predicting Sale Price for ", name) 
+rpart.plot(borough_tree,
+           type = 2,          # label all nodes
+           extra = 101,       # show predicted value and % of observations
+           fallen.leaves = TRUE,
+           tweak = 1.2,
+           main = tree_title)
+
+}
+```
+Here is a decision tree when using gross square feet to predict sale price. At First, it separates the majority by asking for the cutoff between the cluster and the outliers (that being 66e+3). Then if it is part of the majority, it will be less than that, and will ask a more specific value (<6813). If it is less than that, then it will be assigned to 94% of the data, being 1.2e+6. If not, then itll belong to 5%, and will instead have a price of 9.5e+6.
+
+This will go on with the other side (which is considered outliers). For this, we can see that it is 1% or lower for each section that will be assigned. 
+
+The prices that it will decide to assign is pretty unique, as it isn't a linear increase based on the size of the property. There are some that are less in price compared to the one before, such as the largest property having a smaller price compared to the second largest. 
+
+
+
+
+```{r Model Analysis for all Regressions, echo= FALSE}
+
+
+
+results <- data.frame()
+
+for (name in names(borough_list)) {
+  borough_data <- borough_list[[name]]
+  
+  # Split into training/testing
+ 
+  
+  borough_data <- borough_list[[name]]
+  
+  if (nrow(borough_data) < 10) next  # skip small datasets
+
+  # Normalize numeric predictors for NN
+  # Neural Network Model
+  
+  
+  nn_preds <- predict(nn_mod, newdata = borough_data)
+  
+  nn_rmse <- sqrt(mean((nn_preds - borough_data$SALE.PRICE)^2))
+  nn_mae <- mean(abs(nn_preds - borough_data$SALE.PRICE))
+  ss_total <- sum((borough_data$SALE.PRICE - mean(borough_data$SALE.PRICE))^2)
+  ss_resid <- sum((borough_data$SALE.PRICE - nn_preds)^2)
+  nn_r2 <- 1 - ss_resid / ss_total
+
+  # Linear Regression Model
+  
+  lm_preds <- predict(lr_model, newdata = borough_data)
+  lm_rmse <- sqrt(mean((lm_preds - borough_data$SALE.PRICE)^2))
+  lm_mae <- mean(abs(lm_preds - borough_data$SALE.PRICE))
+  lm_r2 <- summary(lr_model)$r.squared
+  
+ 
+  tree_preds<-predict(tree_model, newdata = borough_data)
+  tree_rmse <- sqrt(mean((tree_preds - borough_data$SALE.PRICE)^2))
+  tree_mse <- mean(abs(tree_preds - borough_data$SALE.PRICE))
+  tt_total <- sum((borough_data$SALE.PRICE - mean(borough_data$SALE.PRICE))^2)
+  tt_resid <- sum((borough_data$SALE.PRICE - tree_preds)^2)
+  tree_r2 <- abs(1 - (tt_resid / tt_total))
+  
+  
+  
+
+  # Save to results table
+  
+  results<-rbind(results, data.frame(
+    Borough = name,
+    Model = "Decision Tree",
+    RMSE = round(tree_rmse),
+    MSE = round(tree_mse),
+    R2 = round(tree_r2, 3)
+  ))
+  results <- rbind(results, data.frame(
+    Borough = name,
+    Model = "Linear Regression",
+    RMSE = round(lm_rmse),
+    MSE = round(lm_mae),
+    R2 = round(lm_r2, 3)
+  ))
+  
+  results <- rbind(results, data.frame(
+    Borough = name,
+    Model = "Neural Network",
+    RMSE = round(nn_rmse),
+    MSE = round(nn_mae),
+    R2 = abs(round(nn_r2, 3))
+  ))
+}
+
+results[results$Borough=="Manhattan",]
+results[results$Borough=="Brooklyn",]
+results[results$Borough=="Queens",]
+results[results$Borough=="Bronx",]
+results[results$Borough=="Staten_Island",]
+
+
+
+
+
 
 ```
-The scatterplots show that the majority of properties cluster tightly in a lower range of square footage and sale price, with a few extreme outliers (often luxury properties) stretching the scale. This compresses the main data area and visually hides much of the structure. It also suggests that linear regression may struggle to model the full range of sale prices effectively.
 
 
-For the individual Boroughs, you can tell that Staten Island have the highest sale price per gross square feet
+Looking at this, we can see that throughout most of the individual boroughs, Neural Networks have the smallest amount of error, while Linear Regression is second best one when predicting sale price based on gross size (square feet). This shows, when it comes to predicting sales price by gross size, Neural Networks is the most effective and reliable among the 3 tested. 
+
+
+
+
+
+
+
+
+EXTRA, THIS WAS NOT USED WHEN IT COMES TO USING GROSS(SQUARE FEET) TO PREDICT SALE PRICE. THIS IS RATHER CLASSIFYING THE DIFFERENT DATA WHEN IT COMES TO 3 PRICE CATEGORIES (Low, Medium, High)
+
+
+
+There is also a classification, in which I also decided to place them into 3 separate categories (Low, Medium, and High). This can help provide helpful insights when it comes to classification models, such as K-Nearest Neighbors, Classification Trees, and Logistics Regression, something that I would not be able to do with Sale Price by itself, as that it a numerical  variable, rather than a categorical variable.
+
+
+
+
 
 
 ```{r define_w/o, results='hide', echo=TRUE}
@@ -233,9 +425,9 @@ new_york_city_data$PRICE.CAT <-cut(
 cutoff <- quantile(new_york_city_data$SALE.PRICE, probs = c(0,1/3,2/3,1), na.rm = TRUE)
 
 
-for (name in names(boroughs_list)) {
-  boroughs_list[[name]]$PRICE.CAT <- cut(
-    boroughs_list[[name]]$SALE.PRICE,
+for (name in names(borough_list)) {
+  borough_list[[name]]$PRICE.CAT <- cut(
+    borough_list[[name]]$SALE.PRICE,
     breaks = cutoff,
     include.lowest = TRUE,
     labels = c("Low", "Medium", "High")
@@ -356,8 +548,8 @@ We can also see this being applied to the ROC and AUC values, with category 3 ha
 # dir.create("plots")
 
 i <- 0
-for (name in names(boroughs_list)) {
-  borough_data <- boroughs_list[[name]]
+for (name in names(borough_list)) {
+  borough_data <- borough_list[[name]]
   borough_data$PRICE.CAT <- as.numeric(borough_data$PRICE.CAT)
   borough.predictors <- borough_data[-c(14)]
   i <- i + 1
@@ -517,8 +709,8 @@ Looking at this, it wasn't as accurate, especially for the 2nd category (medium)
 print("CART analysis for each Borough")
 i<-0
 #Seeing how the model fits for each borough
-for (name in names(boroughs_list)) {
-  borough_data <- boroughs_list[[name]]
+for (name in names(borough_list)) {
+  borough_data <- borough_list[[name]]
   borough_data$PRICE.CAT<-as.numeric(borough_data$PRICE.CAT)
   
   # Make sure predictors match training data
@@ -648,8 +840,8 @@ legend("bottomright",
 ```{r Borough analysis for Neural Networks, echo=FALSE}
 #Seeing how the model fits for each borough
 i<-0
-for (name in names(boroughs_list)) {
-  borough_data <- boroughs_list[[name]]
+for (name in names(borough_list)) {
+  borough_data <- borough_list[[name]]
   borough_data$PRICE.CAT<-as.numeric(borough_data$PRICE.CAT)
   
   # Make sure predictors match training data
@@ -762,8 +954,8 @@ legend("bottomright",
 ```{r Borough_analysis_for_Logistics_Regression, echo=FALSE}
 #Seeing how the model fits for each borough
 i<-0
-for (name in names(boroughs_list)) {
-  borough_data <- boroughs_list[[name]]
+for (name in names(borough_list)) {
+  borough_data <- borough_list[[name]]
   borough_data$PRICE.CAT<-as.numeric(borough_data$PRICE.CAT)
   i<-i+1
   # Ensure that the predictors match training data
@@ -887,12 +1079,6 @@ Looking at each individual borough, we can see that Neural Net underperform comp
 
 
 So, when it comes to the individual boroughs, classifying based on sale price would be more effective using K-Nearest Neighbors, while for the overall data of New York City, we would instead use Classification Trees.
-
-
-
-
-
-
 
 
 
