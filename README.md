@@ -12,8 +12,8 @@ Members : Stephanie Cheng
 ### Data Preprocessing
 Members : David Wu, Trae Smith
 - Removed missing values and extreme outliers
-- Standardized features for modeling
-- Applied PCA and ICA for dimensionality reduction
+- Standardized features for modeling if necessary 
+- Applied PCA and ICA for dimensionality reduction if necessary 
 - Visualized raw vs. cleaned data to show improvements
 
 ### Unsupervised Learning
@@ -27,13 +27,16 @@ Members : Trae Smith
 - Evaluted model performance using R^2, MSE, accuracy and confusion matrix
 
 ### Final Comparison
-Members : Stephanie Cheng, David Wu, Trae Smith
+Members : David Wu, Trae Smith, Haroun Sheikh
 - Compared clustering vs prediction results
 - Visualized pattern in prices, residuals, and accuracy among NYC's 5 boroughs
 - Showed pros and cons of supervised vs unsupervised approaches
 
 ### Report Writing
-Members : David Wu 
+Members : David Wu , Haroun Sheikh 
 - Led the writing of the final report
 - All members contributed to editing and reviewing 
 
+### Final Proofread
+Members : Haroun Sheikh
+- Make sure everything is good including all the code. 
