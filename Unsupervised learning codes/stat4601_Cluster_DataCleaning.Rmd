@@ -1,0 +1,102 @@
+---
+title: "Data Cleaning for Unsupervised Learning"
+author: "Stephanie Cheng"
+date: "2025-04-08"
+output: pdf_document
+---
+
+```{r libraries, include=FALSE}
+library(here)
+library(dplyr)
+library(writexl)
+```
+
+```{r setup}
+#Getting the datasets from the Excel files
+manhattan_data<-readxl::read_xlsx(
+  here::here("original_dataset","rollingsales_manhattan.xlsx")) |>
+  janitor::clean_names()
+bronx_data<-readxl::read_xlsx(
+  here::here("original_dataset","rollingsales_bronx.xlsx")) |>
+  janitor::clean_names()
+brooklyn_data<-readxl::read_xlsx(
+  here::here("original_dataset","rollingsales_brooklyn.xlsx")) |>
+  janitor::clean_names()
+queens_data<-readxl::read_xlsx(
+  here::here("original_dataset","rollingsales_queens.xlsx")) |>
+  janitor::clean_names()
+staten_island_data<-readxl::read_xlsx(
+  here::here("original_dataset","rollingsales_statenisland.xlsx")) |>
+  janitor::clean_names()
+
+#Column Names are the 4th row
+col_names<-make.names(c(manhattan_data[4,]))
+
+#The Information in row 1 to 3 are descriptions of the dataset, 
+#and are not needed in the dataframe, 
+#the 4th row is the column names and can also be removed
+manhattan_data<-manhattan_data[-c(1:4),]
+bronx_data<-bronx_data[-c(1:4),]
+brooklyn_data<-brooklyn_data[-c(1:4),]
+queens_data<-queens_data[-c(1:4),]
+staten_island_data<-staten_island_data[-c(1:4),]
+
+#The column names are the same for all datasets,
+#so we can use the same vector for all of them
+colnames(manhattan_data)<-col_names
+colnames(bronx_data)<-col_names
+colnames(brooklyn_data)<-col_names
+colnames(queens_data)<-col_names
+colnames(staten_island_data)<-col_names
+```
+
+```{r cleaning}
+clean_data <- function(data) {
+  data %>%
+    filter(SALE.PRICE != 0) %>%
+    select(
+      -NEIGHBORHOOD, -BLOCK, -LOT, -EASEMENT, 
+      -ADDRESS, -APARTMENT.NUMBER, -SALE.DATE, -SALE.PRICE,
+      -TAX.CLASS.AT.TIME.OF.SALE, -BUILDING.CLASS.AT.TIME.OF.SALE,
+      -BUILDING.CLASS.CATEGORY, -TAX.CLASS.AT.PRESENT,
+      -BUILDING.CLASS.AT.PRESENT, -COMMERCIAL.UNITS, -LAND.SQUARE.FEET,
+      -ZIP.CODE) %>%
+    mutate(
+      BOROUGH= as.numeric(BOROUGH), 
+      RESIDENTIAL.UNITS = as.numeric(RESIDENTIAL.UNITS), 
+      TOTAL.UNITS = as.numeric(TOTAL.UNITS), 
+      GROSS.SQUARE.FEET = as.numeric(GROSS.SQUARE.FEET), 
+      YEAR.BUILT = as.numeric(YEAR.BUILT)
+    ) %>%
+    na.omit()
+}
+manhattan_data <- clean_data(manhattan_data)
+bronx_data <- clean_data(bronx_data)
+brooklyn_data <- clean_data(brooklyn_data)
+queens_data <- clean_data(queens_data)
+staten_island_data <- clean_data(staten_island_data)
+```
+
+```{r combine}
+new_york_city_data <- rbind(manhattan_data, bronx_data, brooklyn_data, 
+                            queens_data, staten_island_data)
+```
+
+```{r save}
+dir.create("dataset_RData_cluster")
+save(manhattan_data, file = "dataset_RData/manhattan_data.RData")
+save(bronx_data, file = "dataset_RData/bronx_data.RData")
+save(brooklyn_data, file = "dataset_RData/brooklyn_data.RData")
+save(queens_data, file = "dataset_RData/queens_data.RData")
+save(staten_island_data, file = "dataset_RData/staten_island_data.RData")
+save(new_york_city_data, file = "dataset_RData/new_york_city_data.RData")
+
+dir.create("cleaned_dataset_before_cluster")
+write_xlsx(manhattan_data, "cleaned_dataset/cleaned_manhattan_data.xlsx")
+write_xlsx(queens_data, "cleaned_dataset/cleaned_queens_data.xlsx")
+write_xlsx(bronx_data, "cleaned_dataset/cleaned_bronx_data.xlsx")
+write_xlsx(brooklyn_data, "cleaned_dataset/cleaned_brooklyn_data.xlsx")
+write_xlsx(staten_island_data, "cleaned_dataset/cleaned_staten_island_data.xlsx")
+write_xlsx(new_york_city_data, "cleaned_dataset/cleaned_new_york_city_data.xlsx")
+```
+
