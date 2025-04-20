@@ -35,7 +35,7 @@ Members : David Wu , Haroun Sheikh
 - Led the writing of the final report
 - All members contributed to editing and reviewing 
 
-### Final Proofread
+### Final Code Review and Support
 Members : Haroun Sheikh
 - Assisted in completing unfinished code components
 - Reviewed and ensured functionality of the final codebase
