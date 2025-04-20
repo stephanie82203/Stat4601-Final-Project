@@ -1,7 +1,7 @@
 # Stat4601-Final-Project
 
 ## Project Objective
-This project investigates how property size affects condo prices across New York City's five boroughs: Manhattan, Brooklyn, Queens, The Bronx, and Staten Island.
+In this project, we analyze New York City condominium sales data to predict condo prices based on property size. We also compare model performance across NYC's five boroughs (Manhattan, Brooklyn, Queens, The Bronx, and Staten Island), providing insights into real estate trends.
 
 ## Roles & Workflow 
 ### Project Setup
@@ -9,12 +9,10 @@ Members : Stephanie Cheng
 - Outlined the entire project structure
 - Created and maintained the GitHub repository
 
-### Data Preprocessing
-Members : David Wu, Trae Smith
-- Removed missing values and extreme outliers
-- Standardized features for modeling if necessary 
-- Applied PCA and ICA for dimensionality reduction if necessary 
+### Data Visualization
+Members : David Wu
 - Visualized raw vs. cleaned data to show improvements
+_(Note: Data preprocessing for modeling was handled separately for the unsupervised and supervised learning tasks.)_
 
 ### Unsupervised Learning
 Members : Stephanie Cheng
@@ -33,10 +31,11 @@ Members : David Wu, Trae Smith, Haroun Sheikh
 - Showed pros and cons of supervised vs unsupervised approaches
 
 ### Report Writing
-Members : David Wu , Haroun Sheikh 
+Members : David Wu , Haroun Sheikh
 - Led the writing of the final report
 - All members contributed to editing and reviewing 
 
 ### Final Proofread
 Members : Haroun Sheikh
-- Make sure everything is good including all the code. 
+- Assisted in completing unfinished code components
+- Reviewed and ensured functionality of the final codebase
