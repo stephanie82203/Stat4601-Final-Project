@@ -24,6 +24,7 @@ Members : Stephanie Cheng
 Members : Trae Smith
 - Built predictive models (linear regression, regression tree, KNN, classification tree)
 - Evaluted model performance
+_Code Result File too large to upload_
 
 ### Report Writing
 Members : David Wu , Haroun Sheikh
