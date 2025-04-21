@@ -1,0 +1,69 @@
+---
+title: "Stat4601_Manhattan_Kmeans"
+author: "Stephanie Cheng"
+date: "2025-04-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(stats)
+library(here)
+library(ggplot2)
+
+source("UL_helpers.r")
+
+load("dataset_RData_cluster/manhattan_data.RData")
+```
+
+# K-mean with PCA
+Reduce dimensions and prepare data for clustering
+```{r PCA}
+manhattan_pca <- pca(manhattan_data, "Manhattan")
+```
+
+Calculate clustering evaluation with Davies Bouldin index & Within-cluster sum of squares.
+See the affect when K is increasing, then we can apply elbow method to avoid 
+picking the best k within overfitting case. 
+```{r Clustering Metrics}
+manhattan_k_stats_20 <- calculate_k_stats_PCA(manhattan_pca, max_k = 20)
+manhattan_k_stats_40 <- calculate_k_stats_PCA(manhattan_pca, max_k = 40)
+
+# DBI & WSS plot
+elbows_20 <- plot_kmeans(manhattan_k_stats_20$errs, manhattan_k_stats_20$DBI)
+elbows_40 <- plot_kmeans(manhattan_k_stats_40$errs, manhattan_k_stats_40$DBI)
+```
+
+```{r Best K cluster}
+best_k <- 4
+```
+
+Plot all clusters from 2 to 7 as the best k clusters is within that range. 
+```{r K Clustering Plot}
+plot_clusters(manhattan_k_stats_20$X.syn, min_k = 2, max_k = 7)
+```
+
+K-means on PCA as PCA gives a lower-dimensional variable that improves
+clustering quality
+```{r perform k with Optimal K}
+km <- kmeans(manhattan_pca$x, centers = best_k, nstart = 25)
+summarize_kmeans(km, "Manhattan")
+```
+
+Interpret what the clusters mean with the original data
+```{r Summarize Cluster}
+manhattan_data$cluster <- km$cluster
+aggregate(. ~ cluster, data = manhattan_data, mean)
+```
+
+Export the clusters for Supervised learning 
+```{r export}
+dir.create("after_cluster_dataset")
+write.csv(manhattan_data, 
+          file = "after_cluster_dataset/cleaned_manhattan_with_clusters.csv", 
+          row.names = FALSE)
+```
+
+
+

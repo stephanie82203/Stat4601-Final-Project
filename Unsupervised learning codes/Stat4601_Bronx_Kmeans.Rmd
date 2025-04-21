@@ -1,0 +1,65 @@
+---
+title: "Stat4601_Bronx_Kmeans"
+author: "Stephanie Cheng"
+date: "2025-04-09"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(stats)
+library(here)
+library(ggplot2)
+
+source("UL_helpers.r")
+
+load("dataset_RData_cluster/bronx_data.RData")
+```
+
+# K-mean with PCA
+Reduce dimensions and prepare data for clustering
+```{r PCA}
+bronx_pca <- pca(bronx_data, "Bronx")
+```
+
+Calculate clustering evaluation with Davies Bouldin index & Within-cluster sum of squares.
+See the affect when K is increasing, then we can apply elbow method to avoid 
+picking the best k within overfitting case. 
+```{r Clustering Metrics}
+bronx_k_stats_20 <- calculate_k_stats_PCA(bronx_pca, max_k = 20)
+bronx_k_stats_40 <- calculate_k_stats_PCA(bronx_pca, max_k = 40)
+
+# DBI & WSS plot
+elbows_20 <- plot_kmeans(bronx_k_stats_20$errs, bronx_k_stats_20$DBI)
+elbows_40 <- plot_kmeans(bronx_k_stats_40$errs, bronx_k_stats_40$DBI)
+```
+
+```{r Best K cluster}
+best_k <- 5
+```
+
+Plot all clusters from 3 to 8 as the best k clusters is within that range. 
+```{r K Clustering Plot}
+plot_clusters(bronx_k_stats_20$X.syn, min_k = 3, max_k = 8)
+```
+
+K-means on PCA as PCA gives a lower-dimensional variable that improves
+clustering quality
+```{r perform k with Optimal K}
+km <- kmeans(bronx_pca$x, centers = best_k, nstart = 25)
+summarize_kmeans(km, "Bronx")
+```
+
+Interpret what the clusters mean with the original data
+```{r Summarize Cluster}
+bronx_data$cluster <- km$cluster
+aggregate(. ~ cluster, data = bronx_data, mean)
+```
+
+Export the clusters for Supervised learning 
+```{r export}
+dir.create("after_cluster_dataset")
+write.csv(bronx_data, 
+          file = "after_cluster_dataset/cleaned_bronx_with_clusters.csv", 
+          row.names = FALSE)
+```
