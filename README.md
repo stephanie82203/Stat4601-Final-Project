@@ -32,5 +32,4 @@ Members : David Wu , Haroun Sheikh
 
 ### Final Code Review and Support
 Members : Haroun Sheikh
-- Assisted in completing unfinished code components
-- Reviewed and ensured functionality of the final codebase
+- Reviewed the final codebase
