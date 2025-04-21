@@ -1,0 +1,39 @@
+---
+title: "Hierarchical clustering for NYC"
+author: "Stephanie Cheng"
+date: "2025-04-09"
+output: pdf_document
+---
+
+Reference:
+- Section 6 code
+```{r setup, include=FALSE}
+library(dplyr) 
+library(stats)      
+library(graphics)
+library(factoextra)
+library(cluster)
+
+source("UL_helpers.r")
+
+load("dataset_RData_cluster/new_york_city_data.RData")
+```
+
+```{r PCA}
+nyc_pca <- pca(new_york_city_data, "New York City")
+```
+
+
+```{r hierarchical}
+X.syn <- nyc_pca$x[, 1:1:ncol(nyc_pca$x)]
+
+dist_matrix <- dist(X.syn, method = "euclidean")
+
+# Perform Hierarchical Clustering (Ward's Method)
+hc <- hclust(dist_matrix, method = "ward.D2")
+
+#Plot Dendrogram
+plot(hc, labels = FALSE, main = "Hierarchical Clustering Dendrogram", xlab = "", sub = "", cex = 0.5)
+abline(h = 150, col = "red", lty = 2)
+```
+
