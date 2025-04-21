@@ -2,6 +2,8 @@
 
 ######### PCA ###############
 pca <- function(df,df_name) {
+  # Remove constant columns
+  df <- df[, apply(df, 2, function(x) sd(x, na.rm = TRUE) != 0)]
   # Apply PCA
   df_pca <- prcomp(df, scale. = TRUE)
   
@@ -110,4 +112,13 @@ plot_clusters <- function(X.syn, min_k , max_k) {
          ylab = "PC2"[2])
   } 
   par(oldpar)
+}
+
+summarize_kmeans <- function(kmeans_model, data_name) {
+  cat("\n===== K-means Model Performance Summary for", data_name, "=====\n")
+  cat("Total within-cluster sum of squares (WSS):", kmeans_model$tot.withinss, "\n")
+  cat("\nCluster sizes:\n")
+  print(kmeans_model$size)
+  cat("\nCluster centers (in PCA space):\n")
+  print(kmeans_model$centers)
 }
