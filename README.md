@@ -7,7 +7,7 @@ In this project, we analyze New York City condominium sales data to predict cond
 ### Project Setup
 Members : Stephanie Cheng
 - Outlined the entire project structure
-- Created and maintained the GitHub repository
+- Maintained the GitHub repository
 
 ### Data Visualization
 Members : David Wu
@@ -16,19 +16,14 @@ _(Note: Data preprocessing for modeling was handled separately for the unsupervi
 
 ### Unsupervised Learning
 Members : Stephanie Cheng
-- Performed k-means clustering and vector quantization
-- Visualized and interpreted clustering results
+- Performed k-means clustering
+- Conducted hierarchical clustering to support k selection
+- Visualized and interpreted clustering results, including WSS and DBI plots
 
 ### Supervised Learning
 Members : Trae Smith
-- Built linear regression, regression tree, KNN, and classification tree models
-- Evaluted model performance using R^2, MSE, accuracy and confusion matrix
-
-### Final Comparison
-Members : David Wu, Trae Smith, Haroun Sheikh
-- Compared clustering vs prediction results
-- Visualized pattern in prices, residuals, and accuracy among NYC's 5 boroughs
-- Showed pros and cons of supervised vs unsupervised approaches
+- Built predictive models (linear regression, regression tree, KNN, classification tree)
+- Evaluted model performance
 
 ### Report Writing
 Members : David Wu , Haroun Sheikh
