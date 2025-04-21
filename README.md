@@ -21,7 +21,7 @@ Members : Stephanie Cheng
 
 ### Supervised Learning
 Members : Trae Smith
-- Built linear regression, regression tree, logistic regression, and classification tree models
+- Built linear regression, regression tree, KNN, and classification tree models
 - Evaluted model performance using R^2, MSE, accuracy and confusion matrix
 
 ### Final Comparison
